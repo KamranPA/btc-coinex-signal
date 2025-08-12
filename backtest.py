@@ -3,26 +3,28 @@ import datetime
 import pandas as pd
 import ccxt
 import requests
-import json
+import os
 
 # -------------------------------
-# تنظیمات بک‌تست
+# 1. دریافت بازه زمانی از ورودی GitHub
 # -------------------------------
+START_DATE = os.getenv('START_DATE', '2023-01-01')
+END_DATE = os.getenv('END_DATE', '2023-02-01')
+
+# تنظیمات
 SYMBOL = 'BTC/USDT'
 TIMEFRAME = '15m'
-START_DATE = '2025-03-01'  # ⏰ تاریخ شروع (دلخواه)
-END_DATE = '2025-04-01'    # ⏰ تاریخ پایان (دلخواه)
 
 # توکن و چت آیدی تلگرام — خودتان وارد کنید
-TELEGRAM_TOKEN = "8205878716:AAFOSGnsF1gnY3kww1WvPT0HYubCkyPaC64"  # ← عوض کنید
-TELEGRAM_CHAT_ID = "104506829"  # ← عوض کنید
+TELEGRAM_TOKEN = "7123456789:AAHd123abcDEFgh456ijk789LMNOPqrstuv"  # ← عوض کنید
+TELEGRAM_CHAT_ID = "123456789"  # ← عوض کنید
 
 # پارامترهای معامله
 SL_ATR_MULTIPLIER = 1.5
 TP_RR_RATIO = 2.0
 
 # -------------------------------
-# 1. دریافت داده با محدودیت زمانی
+# 2. دریافت داده با محدودیت زمانی
 # -------------------------------
 def fetch_data():
     exchange = ccxt.coinex({'enableRateLimit': True})
@@ -42,15 +44,21 @@ def fetch_data():
             break
 
     df = pd.DataFrame(all_ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    if df.empty:
+        return df
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
     df = df[(df['timestamp'] >= START_DATE) & (df['timestamp'] < END_DATE)]
+    df.reset_index(drop=True, inplace=True)
     print(f"✅ {len(df)} کندل دریافت شد از {START_DATE} تا {END_DATE}")
     return df
 
 # -------------------------------
-# 2. محاسبه اندیکاتورها
+# 3. محاسبه اندیکاتورها
 # -------------------------------
 def add_indicators(df):
+    if df is None or len(df) < 50:
+        return df
+
     # EMA
     df['ema20'] = df['close'].ewm(span=20).mean()
     df['ema50'] = df['close'].ewm(span=50).mean()
@@ -73,15 +81,16 @@ def add_indicators(df):
     return df
 
 # -------------------------------
-# 3. ارزیابی فیلترها
+# 4. ارزیابی فیلترها
 # -------------------------------
 def is_signal(df, i):
     l = df.iloc[i]
     p = df.iloc[i-1] if i > 0 else None
-    if p is None:
+    if p is None or pd.isna(l['rsi']):
         return False
 
-    volume_avg = df['volume'].iloc[max(0, i-20):i].mean() if i > 20 else df['volume'].iloc[:i].mean()
+    volume_window = df['volume'].iloc[max(0, i-20):i]
+    volume_avg = volume_window.mean() if len(volume_window) > 0 else 0
 
     filters = {
         "trend": l['ema20'] > l['ema50'] > l['ema200'],
@@ -95,7 +104,7 @@ def is_signal(df, i):
     return all(filters.values())
 
 # -------------------------------
-# 4. شبیه‌سازی معاملات
+# 5. شبیه‌سازی معاملات
 # -------------------------------
 def run_backtest(df):
     trades = []
@@ -105,22 +114,20 @@ def run_backtest(df):
     tp_price = 0
     trade_start_time = None
 
-    for i in range(50, len(df)):  # شروع از کندل 50 برای اندیکاتور
+    for i in range(50, len(df)):
         if not in_trade and is_signal(df, i):
             entry_price = df['close'].iloc[i]
             atr = df['atr'].iloc[i]
-            support = df['low'].iloc[i-10:i].min()
+            support = df['low'].iloc[max(0, i-10):i].min() if i > 10 else df['low'].iloc[0:i].min()
             
             sl_price = min(entry_price - (SL_ATR_MULTIPLIER * atr), support * 0.99)
             tp_price = entry_price + TP_RR_RATIO * (entry_price - sl_price)
             trade_start_time = df['timestamp'].iloc[i]
             in_trade = True
-            print(f"📌 ورود در {entry_price} در {trade_start_time}")
 
         elif in_trade:
             low = df['low'].iloc[i]
             high = df['high'].iloc[i]
-            close = df['close'].iloc[i]
             time = df['timestamp'].iloc[i]
 
             if low <= sl_price:
@@ -132,7 +139,6 @@ def run_backtest(df):
                     'duration': (time - trade_start_time).total_seconds() / 3600,
                     'time': time
                 })
-                print(f"⛔ خروج با ضرر در {sl_price}")
                 in_trade = False
             elif high >= tp_price:
                 trades.append({
@@ -143,17 +149,16 @@ def run_backtest(df):
                     'duration': (time - trade_start_time).total_seconds() / 3600,
                     'time': time
                 })
-                print(f"🎯 خروج با سود در {tp_price}")
                 in_trade = False
 
     return trades
 
 # -------------------------------
-# 5. تولید گزارش
+# 6. تولید گزارش
 # -------------------------------
 def generate_report(trades):
     if not trades:
-        return "📊 بک‌تست: هیچ سیگنالی فعال نشد."
+        return f"📊 بک‌تست: هیچ سیگنالی در بازه <b>{START_DATE}</b> تا <b>{END_DATE}</b> فعال نشد."
 
     wins = [t for t in trades if t['type'] == 'win']
     win_rate = len(wins) / len(trades) * 100
@@ -176,7 +181,7 @@ def generate_report(trades):
     return report.strip()
 
 # -------------------------------
-# 6. ارسال به تلگرام
+# 7. ارسال به تلگرام
 # -------------------------------
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -186,19 +191,24 @@ def send_telegram(message):
         'parse_mode': 'HTML'
     }
     try:
-        requests.post(url, data=data, timeout=10)
-        print("✅ گزارش بک‌تست به تلگرام ارسال شد")
+        response = requests.post(url, data=data, timeout=10)
+        if response.status_code == 200:
+            print("✅ گزارش بک‌تست به تلگرام ارسال شد")
+        else:
+            print(f"❌ وضعیت ارسال: {response.status_code}")
     except Exception as e:
         print(f"❌ ارسال ناموفق: {str(e)}")
 
 # -------------------------------
-# 7. اجرای اصلی
+# 8. اجرای اصلی
 # -------------------------------
 def main():
-    print("🔄 شروع بک‌تست...")
+    print(f"🔄 شروع بک‌تست: {START_DATE} تا {END_DATE}")
     df = fetch_data()
-    if len(df) < 100:
-        print("❌ داده کافی نیست")
+    if df is None or len(df) < 100:
+        report = f"❌ بک‌تست ناموفق: داده کافی دریافت نشد برای دوره {START_DATE} تا {END_DATE}"
+        print(report)
+        send_telegram(report)
         return
 
     df = add_indicators(df)
