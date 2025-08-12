@@ -1,0 +1,25 @@
+name: Run Signal Bot
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'  # هر 15 دقیقه
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: Install dependencies
+        run: |
+          pip install ccxt pandas requests
+
+      - name: Run bot
+        run: python main.py
