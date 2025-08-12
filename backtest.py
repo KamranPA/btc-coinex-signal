@@ -3,33 +3,30 @@ import datetime
 import pandas as pd
 import ccxt
 import requests
-import os
 
 # -------------------------------
-# 1. دریافت بازه زمانی از ورودی GitHub
+# تنظیمات دستی — فقط اینجا را عوض کنید
 # -------------------------------
-START_DATE = os.getenv('START_DATE', '2023-01-01')
-END_DATE = os.getenv('END_DATE', '2023-02-01')
-
-# تنظیمات
+START_DATE = '2025-06-01'      # تاریخ شروع بک‌تست
+END_DATE = '2025-07-01'        # تاریخ پایان بک‌تست
 SYMBOL = 'BTC/USDT'
 TIMEFRAME = '15m'
 
-# توکن و چت آیدی تلگرام — خودتان وارد کنید
-TELEGRAM_TOKEN = "7123456789:AAHd123abcDEFgh456ijk789LMNOPqrstuv"  # ← عوض کنید
-TELEGRAM_CHAT_ID = "123456789"  # ← عوض کنید
+# اطلاعات ربات تلگرام — توکن و چت آیدی را وارد کنید
+TELEGRAM_TOKEN = "8205878716:AAFOSGnsF1gnY3kww1WvPT0HYubCkyPaC64"  # ← اینجا عوض کنید
+TELEGRAM_CHAT_ID = "104506829"  # ← اینجا عوض کنید
 
 # پارامترهای معامله
 SL_ATR_MULTIPLIER = 1.5
 TP_RR_RATIO = 2.0
 
 # -------------------------------
-# 2. دریافت داده با محدودیت زمانی
+# 1. دریافت داده از CoinEx
 # -------------------------------
 def fetch_data():
     exchange = ccxt.coinex({'enableRateLimit': True})
-    since = exchange.parse8601(START_DATE + 'T00:00:00Z')
-    end = exchange.parse8601(END_DATE + 'T00:00:00Z')
+    since = exchange.parse8601(f"{START_DATE}T00:00:00Z")
+    end = exchange.parse8601(f"{END_DATE}T00:00:00Z")
     
     all_ohlcv = []
     while since < end:
@@ -53,25 +50,22 @@ def fetch_data():
     return df
 
 # -------------------------------
-# 3. محاسبه اندیکاتورها
+# 2. محاسبه اندیکاتورها
 # -------------------------------
 def add_indicators(df):
-    if df is None or len(df) < 50:
+    if len(df) < 50:
         return df
 
-    # EMA
     df['ema20'] = df['close'].ewm(span=20).mean()
     df['ema50'] = df['close'].ewm(span=50).mean()
     df['ema200'] = df['close'].ewm(span=200).mean()
 
-    # RSI
     delta = df['close'].diff()
     gain = delta.where(delta > 0, 0).rolling(14).mean()
-    loss = -delta.where(delta < 0, 0).rolling(14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     rs = gain / loss
     df['rsi'] = 100 - (100 / (1 + rs))
 
-    # ATR
     high_low = df['high'] - df['low']
     high_close = abs(df['high'] - df['close'].shift())
     low_close = abs(df['low'] - df['close'].shift())
@@ -81,7 +75,7 @@ def add_indicators(df):
     return df
 
 # -------------------------------
-# 4. ارزیابی فیلترها
+# 3. تشخیص سیگنال
 # -------------------------------
 def is_signal(df, i):
     l = df.iloc[i]
@@ -89,22 +83,19 @@ def is_signal(df, i):
     if p is None or pd.isna(l['rsi']):
         return False
 
-    volume_window = df['volume'].iloc[max(0, i-20):i]
-    volume_avg = volume_window.mean() if len(volume_window) > 0 else 0
+    volume_avg = df['volume'].iloc[max(0, i-20):i].mean()
 
-    filters = {
-        "trend": l['ema20'] > l['ema50'] > l['ema200'],
-        "price_above_ema200": l['close'] > l['ema200'],
-        "volume_spike": l['volume'] > 1.3 * volume_avg,
-        "high_volatility": l['atr'] > 0.003 * l['close'],
-        "rsi_ok": 30 < l['rsi'] < 70,
-        "structure": l['low'] > p['low'] if l['close'] > l['open'] else False
-    }
-
-    return all(filters.values())
+    return all([
+        l['ema20'] > l['ema50'] > l['ema200'],                    # روند صعودی
+        l['close'] > l['ema200'],                                 # قیمت بالای EMA200
+        l['volume'] > 1.3 * volume_avg,                          # حجم بالا
+        l['atr'] > 0.003 * l['close'],                           # نوسان کافی
+        30 < l['rsi'] < 70,                                      # RSI مناسب
+        l['low'] > p['low'] if l['close'] > l['open'] else False  # ساختار بازار
+    ])
 
 # -------------------------------
-# 5. شبیه‌سازی معاملات
+# 4. شبیه‌سازی معاملات
 # -------------------------------
 def run_backtest(df):
     trades = []
@@ -118,7 +109,7 @@ def run_backtest(df):
         if not in_trade and is_signal(df, i):
             entry_price = df['close'].iloc[i]
             atr = df['atr'].iloc[i]
-            support = df['low'].iloc[max(0, i-10):i].min() if i > 10 else df['low'].iloc[0:i].min()
+            support = df['low'].iloc[max(0, i-10):i].min()
             
             sl_price = min(entry_price - (SL_ATR_MULTIPLIER * atr), support * 0.99)
             tp_price = entry_price + TP_RR_RATIO * (entry_price - sl_price)
@@ -135,8 +126,6 @@ def run_backtest(df):
                     'entry': entry_price,
                     'exit': sl_price,
                     'type': 'loss',
-                    'profit': -1,
-                    'duration': (time - trade_start_time).total_seconds() / 3600,
                     'time': time
                 })
                 in_trade = False
@@ -145,8 +134,6 @@ def run_backtest(df):
                     'entry': entry_price,
                     'exit': tp_price,
                     'type': 'win',
-                    'profit': 1,
-                    'duration': (time - trade_start_time).total_seconds() / 3600,
                     'time': time
                 })
                 in_trade = False
@@ -154,34 +141,32 @@ def run_backtest(df):
     return trades
 
 # -------------------------------
-# 6. تولید گزارش
+# 5. تولید گزارش
 # -------------------------------
 def generate_report(trades):
     if not trades:
-        return f"📊 بک‌تست: هیچ سیگنالی در بازه <b>{START_DATE}</b> تا <b>{END_DATE}</b> فعال نشد."
+        return f"📊 بک‌تست: هیچ سیگنالی در دوره <b>{START_DATE}</b> تا <b>{END_DATE}</b> تولید نشد."
 
     wins = [t for t in trades if t['type'] == 'win']
     win_rate = len(wins) / len(trades) * 100
-    avg_duration = sum(t['duration'] for t in trades) / len(trades)
+    total = len(trades)
 
-    report = f"""
-📈 <b>گزارش بک‌تست سیستم سیگنال</b>
+    return f"""
+📈 <b>گزارش بک‌تست</b>
 📆 دوره: {START_DATE} تا {END_DATE}
 📌 جفت: {SYMBOL}
 ⏱ تایم‌فریم: {TIMEFRAME}
 
-🔢 تعداد معاملات: {len(trades)}
-✅ معاملات سودآور: {len(wins)}
-❌ معاملات ضررده: {len(trades) - len(wins)}
+🔢 تعداد معاملات: {total}
+✅ سودآور: {len(wins)}
+❌ ضررده: {total - len(wins)}
 🎯 نرخ موفقیت: {win_rate:.1f}%
-⏱ میانگین مدت معامله: {avg_duration:.2f} ساعت
 
 #بکتست #سیگنال #بیتکوین
 """
-    return report.strip()
 
 # -------------------------------
-# 7. ارسال به تلگرام
+# 6. ارسال به تلگرام
 # -------------------------------
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -191,24 +176,21 @@ def send_telegram(message):
         'parse_mode': 'HTML'
     }
     try:
-        response = requests.post(url, data=data, timeout=10)
-        if response.status_code == 200:
-            print("✅ گزارش بک‌تست به تلگرام ارسال شد")
-        else:
-            print(f"❌ وضعیت ارسال: {response.status_code}")
+        requests.post(url, data=data, timeout=10)
+        print("✅ گزارش به تلگرام ارسال شد")
     except Exception as e:
         print(f"❌ ارسال ناموفق: {str(e)}")
 
 # -------------------------------
-# 8. اجرای اصلی
+# 7. اجرای اصلی
 # -------------------------------
 def main():
     print(f"🔄 شروع بک‌تست: {START_DATE} تا {END_DATE}")
     df = fetch_data()
-    if df is None or len(df) < 100:
-        report = f"❌ بک‌تست ناموفق: داده کافی دریافت نشد برای دوره {START_DATE} تا {END_DATE}"
-        print(report)
-        send_telegram(report)
+    if len(df) < 100:
+        error_msg = f"❌ بک‌تست ناموفق: داده کافی دریافت نشد ({len(df)} کندل)"
+        print(error_msg)
+        send_telegram(error_msg)
         return
 
     df = add_indicators(df)
