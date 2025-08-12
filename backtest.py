@@ -24,7 +24,7 @@ TP_RR_RATIO = 2.0
 # 1. دریافت داده از CoinEx
 # -------------------------------
 def fetch_data():
-    exchange = ccxt.binance({'enableRateLimit': True})
+    exchange = ccxt.kucoin({'enableRateLimit': True})
     since = exchange.parse8601(f"{START_DATE}T00:00:00Z")
     end = exchange.parse8601(f"{END_DATE}T00:00:00Z")
     
