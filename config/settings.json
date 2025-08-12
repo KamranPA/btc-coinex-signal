@@ -4,8 +4,8 @@
   "timeframe": "15m",
   "limit": 500,
   "telegram": {
-    "token": "7123456789:AAHd123abcDEFgh456ijk789LMNOPqrstuv",
-    "chat_id": "123456789"
+    "token": "8205878716:AAFOSGnsF1gnY3kww1WvPT0HYubCkyPaC64",
+    "chat_id": "104506829"
   },
   "indicators": {
     "ema_fast": 20,
