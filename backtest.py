@@ -3,26 +3,22 @@ import datetime
 import pandas as pd
 import ccxt
 import requests
-import os
+import json
 
 # -------------------------------
-# تنظیمات اصلی — فقط اینجا را ویرایش کنید
+# تنظیمات بک‌تست
 # -------------------------------
-START_DATE = '2025-04-01'      # تاریخ شروع بک‌تست
-END_DATE = '2025-05-01'        # تاریخ پایان بک‌تест
+START_DATE = '2025-04-01'      # ← برای تست تغییر دهید
+END_DATE = '2025-05-01'
 SYMBOL = 'BTC/USDT'
 TIMEFRAME = '15m'
 
-# اطلاعات ربات تلگرام
-TELEGRAM_TOKEN = "7123456789:AAHd123abcDEFgh456ijk789LMNOPqrstuv"  # ← عوض کنید
-TELEGRAM_CHAT_ID = "123456789"  # ← عوض کنید
-
-# پارامترهای معامله
-SL_ATR_MULTIPLIER = 1.5
-TP_RR_RATIO = 2.0
+# توکن تلگرام — خودتان وارد کنید
+TELEGRAM_TOKEN = "8205878716:AAFOSGnsF1gnY3kww1WvPT0HYubCkyPaC64"
+TELEGRAM_CHAT_ID = "104506829"
 
 # -------------------------------
-# 1. دریافت داده از KuCoin (بدون محدودیت)
+# 1. دریافت داده از KuCoin
 # -------------------------------
 def fetch_data():
     exchange = ccxt.kucoin({
@@ -60,102 +56,143 @@ def add_indicators(df):
     if len(df) < 50:
         return df
 
-    # EMA
     df['ema20'] = df['close'].ewm(span=20).mean()
     df['ema50'] = df['close'].ewm(span=50).mean()
     df['ema200'] = df['close'].ewm(span=200).mean()
 
-    # RSI
     delta = df['close'].diff()
     gain = delta.where(delta > 0, 0).rolling(14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
     rs = gain / loss
     df['rsi'] = 100 - (100 / (1 + rs))
 
-    # ATR
     high_low = df['high'] - df['low']
     high_close = abs(df['high'] - df['close'].shift())
     low_close = abs(df['low'] - df['close'].shift())
     tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
     df['atr'] = tr.rolling(14).mean()
 
-    # VWAP
     df['vwap'] = ((df['high'] + df['low'] + df['close']) / 3 * df['volume']).cumsum() / df['volume'].cumsum()
 
     return df
 
 # -------------------------------
-# 3. تشخیص سیگنال دوطرفه (Long و Short)
+# 3. شبیه‌سازی apply_filters.py (نسخه بهینه دوطرفه)
 # -------------------------------
-def is_signal(df, i):
-    l = df.iloc[i]
-    p = df.iloc[i-1] if i > 0 else None
-    if p is None or pd.isna(l['rsi']):
-        return None
+def evaluate_filters(df):
+    i = len(df) - 1
+    l = df.iloc[-1]
+    p = df.iloc[-2] if len(df) > 1 else None
+    if p is None or i < 50:
+        return {"long": False, "short": False, "details": {}}
 
-    volume_avg = df['volume'].iloc[max(0, i-20):i].mean() if i > 20 else df['volume'].mean()
+    volume_avg = df['volume'].tail(20).mean()
     atr_ratio = l['atr'] / l['close']
 
-    # -------------------------------
-    # فیلترهای صعودی (Long)
-    # -------------------------------
+    # Long Conditions
     long_conditions = {
         "trend_up": l['ema20'] > l['ema50'] > l['ema200'],
-        "price_above_ema": l['close'] > l['ema20'],
+        "price_above_ema20": l['close'] > l['ema20'],
         "volume_spike": l['volume'] > 1.3 * volume_avg,
         "volatility_ok": atr_ratio > 0.003,
         "rsi_ok": 35 < l['rsi'] < 60,
         "bullish_candle": l['close'] > l['open'],
         "strong_body": abs(l['close'] - l['open']) / (l['high'] - l['low']) > 0.5,
         "higher_lows": l['low'] > p['low'],
-        "above_vwap": l['close'] > l['vwap'] * 0.99,
-        "rsi_divergence": False  # در حلقه اصلی محاسبه می‌شود
+        "above_vwap": l['close'] > l['vwap'],
+        "rsi_divergence": False
     }
 
-    # -------------------------------
-    # فیلترهای نزولی (Short)
-    # -------------------------------
+    # Short Conditions
     short_conditions = {
         "trend_down": l['ema20'] < l['ema50'] < l['ema200'],
-        "price_below_ema": l['close'] < l['ema20'],
+        "price_below_ema20": l['close'] < l['ema20'],
         "volume_spike": l['volume'] > 1.3 * volume_avg,
         "volatility_ok": atr_ratio > 0.003,
         "rsi_ok": 40 < l['rsi'] < 65,
         "bearish_candle": l['close'] < l['open'],
         "strong_body": abs(l['close'] - l['open']) / (l['high'] - l['low']) > 0.5,
         "lower_highs": l['high'] < p['high'],
-        "below_vwap": l['close'] < l['vwap'] * 1.01,
+        "below_vwap": l['close'] < l['vwap'],
         "rsi_divergence": False
     }
 
-    # محاسبه واگرایی (5 کندل اخیر)
+    # واگرایی
     if i > 5:
-        recent_lows = df['low'].iloc[i-5:i]
-        recent_highs = df['high'].iloc[i-5:i]
-        recent_rsi = df['rsi'].iloc[i-5:i]
+        recent_lows = df['low'].iloc[-5:]
+        recent_highs = df['high'].iloc[-5:]
+        recent_rsi = df['rsi'].iloc[-5:]
 
-        # واگرایی صعودی (Long)
         if recent_lows.is_monotonic_increasing and not recent_rsi.is_monotonic_increasing:
             long_conditions["rsi_divergence"] = True
-
-        # واگرایی نزولی (Short)
         if recent_highs.is_monotonic_decreasing and not recent_rsi.is_monotonic_decreasing:
             short_conditions["rsi_divergence"] = True
 
-    # بررسی Long
     long_score = sum(long_conditions.values())
-    if long_score >= 7:
-        return {"side": "long", "entry": l['close'], "conditions": long_conditions}
-
-    # بررسی Short
     short_score = sum(short_conditions.values())
-    if short_score >= 7:
-        return {"side": "short", "entry": l['close'], "conditions": short_conditions}
+    required = 7  # حداقل 7 فیلتر
 
-    return None
+    return {
+        "long": long_score >= required,
+        "short": short_score >= required,
+        "details": {
+            "long": long_conditions,
+            "short": short_conditions
+        }
+    }
 
 # -------------------------------
-# 4. شبیه‌سازی معاملات
+# 4. شبیه‌سازی make_decision.py
+# -------------------------------
+def make_decision(filters_result, ml_score, df):
+    # فرض: ML Score همیشه 0.75 (میانگین مدل)
+    # یا می‌توانید از یک قانون ساده استفاده کنید
+    ml_score = 0.75
+    threshold = 0.7
+    l = df.iloc[-1]
+
+    if filters_result['long'] and ml_score >= threshold:
+        return {
+            "action": "buy",
+            "entry": l['close'],
+            "direction": "long"
+        }
+    elif filters_result['short'] and ml_score >= threshold:
+        return {
+            "action": "sell",
+            "entry": l['close'],
+            "direction": "short"
+        }
+    else:
+        return {"action": "hold"}
+
+# -------------------------------
+# 5. شبیه‌سازی calculate_risk.py
+# -------------------------------
+def calculate_risk(df, entry_price, direction="long"):
+    l = df.iloc[-1]
+    atr = l['atr']
+    
+    if direction == "long":
+        support = df['low'].rolling(10).min().iloc[-1]
+        sl = min(entry_price - (1.5 * atr), support * 0.99)
+        tp = entry_price + 2 * (entry_price - sl)
+        rr = (tp - entry_price) / (entry_price - sl) if entry_price > sl else 0
+    else:
+        resistance = df['high'].rolling(10).max().iloc[-1]
+        sl = max(entry_price + (1.5 * atr), resistance * 1.01)
+        tp = entry_price - 2 * (sl - entry_price)
+        rr = (entry_price - tp) / (sl - entry_price) if sl > entry_price else 0
+
+    return {
+        "sl": round(sl, 2),
+        "tp": round(tp, 2),
+        "risk_reward": round(rr, 2),
+        "rr_ok": rr >= 1.8
+    }
+
+# -------------------------------
+# 6. شبیه‌سازی معاملات
 # -------------------------------
 def run_backtest(df):
     trades = []
@@ -164,32 +201,27 @@ def run_backtest(df):
     sl_price = 0
     tp_price = 0
     trade_side = None
-    trade_start_time = None
 
     for i in range(50, len(df)):
-        signal = is_signal(df, i)
-        l = df.iloc[i]
+        temp_df = df.iloc[:i+1].copy()
+        temp_df = add_indicators(temp_df)
+        
+        filters = evaluate_filters(temp_df)
+        decision = make_decision(filters, 0.75, temp_df)
+        l = temp_df.iloc[-1]
 
-        # ورود
-        if not in_trade and signal:
-            entry_price = signal['entry']
-            atr = l['atr']
-            trade_side = signal['side']
-            trade_start_time = l['timestamp']
+        if not in_trade and decision["action"] != "hold":
+            entry_price = decision["entry"]
+            risk_data = calculate_risk(temp_df, entry_price, decision["direction"])
+            
+            if not risk_data["rr_ok"]:
+                continue
 
-            if trade_side == "long":
-                support = df['low'].iloc[max(0, i-10):i].min()
-                sl_price = min(entry_price - (SL_ATR_MULTIPLIER * atr), support * 0.99)
-                tp_price = entry_price + TP_RR_RATIO * (entry_price - sl_price)
-            else:  # short
-                resistance = df['high'].iloc[max(0, i-10):i].max()
-                sl_price = max(entry_price + (SL_ATR_MULTIPLIER * atr), resistance * 1.01)
-                tp_price = entry_price - TP_RR_RATIO * (sl_price - entry_price)
-
+            sl_price = risk_data["sl"]
+            tp_price = risk_data["tp"]
+            trade_side = decision["direction"]
             in_trade = True
-            print(f"📌 ورود {trade_side} در {entry_price}")
 
-        # خروج
         elif in_trade:
             low = l['low']
             high = l['high']
@@ -213,38 +245,30 @@ def run_backtest(df):
     return trades
 
 # -------------------------------
-# 5. تولید گزارش
+# 7. گزارش و ارسال
 # -------------------------------
 def generate_report(trades):
     if not trades:
-        return f"📊 بک‌تست: هیچ سیگنالی در دوره <b>{START_DATE}</b> تا <b>{END_DATE}</b> تولید نشد."
+        return f"📊 بک‌تست: هیچ معامله‌ای در دوره <b>{START_DATE}</b> تا <b>{END_DATE}</b> انجام نشد."
 
-    longs = [t for t in trades if t['side'] == 'long']
-    shorts = [t for t in trades if t['side'] == 'short']
     wins = [t for t in trades if t['type'] == 'win']
-    losses = [t for t in trades if t['type'] == 'loss']
-
-    win_rate = len(wins) / len(trades) * 100 if trades else 0
+    win_rate = len(wins) / len(trades) * 100
 
     return f"""
-🚀 <b>گزارش بک‌تست دوطرفه</b>
-📅 دوره: {START_DATE} تا {END_DATE}
+📊 <b>گزارش بک‌تست سیستم اصلی</b>
+📆 دوره: {START_DATE} تا {END_DATE}
 📌 جفت: {SYMBOL}
 ⏱ تایم‌فریم: {TIMEFRAME}
 
-🔢 کل معاملات: {len(trades)}
-🟢 لانگ: {len(longs)}
-🔴 شورت: {len(shorts)}
+🔢 تعداد معاملات: {len(trades)}
 ✅ سودآور: {len(wins)}
-❌ ضررده: {len(losses)}
+❌ ضررده: {len(trades) - len(wins)}
 🎯 نرخ موفقیت: {win_rate:.1f}%
+🔄 سیستم: دوطرفه (Long & Short)
 
-#بکتست #سیگنال #دوطرفه
+#بکتست #سیگنال #حرفه‌ای
 """
 
-# -------------------------------
-# 6. ارسال به تلگرام
-# -------------------------------
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     data = {
@@ -259,7 +283,7 @@ def send_telegram(message):
         print(f"❌ ارسال ناموفق: {str(e)}")
 
 # -------------------------------
-# 7. اجرای اصلی
+# 8. اجرای اصلی
 # -------------------------------
 def main():
     print(f"🔄 شروع بک‌تست: {START_DATE} تا {END_DATE}")
