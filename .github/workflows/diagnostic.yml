@@ -1,0 +1,39 @@
+# .github/workflows/diagnostic.yml
+name: 🔍 اجرای تشخیصی فیلترها
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'تاریخ شروع (فرمت: YYYY-MM-DD)'
+        required: true
+        default: '2025-04-01'
+      end_date:
+        description: 'تاریخ پایان (فرمت: YYYY-MM-DD)'
+        required: true
+        default: '2025-07-01'
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - name: دریافت کد (Checkout)
+        uses: actions/checkout@v3
+
+      - name: نصب پایتون 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: 3.10
+
+      - name: نصب کتابخانه‌ها
+        run: |
+          pip install ccxt pandas requests
+
+      - name: جایگزینی تاریخ در backtest_diagnostic.py
+        run: |
+          echo "📅 تنظیم بازه: ${{ github.event.inputs.start_date }} تا ${{ github.event.inputs.end_date }}"
+          sed -i "s|START_DATE = '.*'|START_DATE = '${{ github.event.inputs.start_date }}'|g" backtest_diagnostic.py
+          sed -i "s|END_DATE = '.*'|END_DATE = '${{ github.event.inputs.end_date }}'|g" backtest_diagnostic.py
+
+      - name: اجرای تشخیصی
+        run: python backtest_diagnostic.py
