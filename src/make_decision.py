@@ -1,31 +1,18 @@
-# src/make_decision.py
-import json
+def decide_entry(structure, divergence, liquidity, volume):
+    signal = {"action": "hold"}
 
-def decide_entry(filters_result, ml_score, df):
-    """
-    تصمیم نهایی بر اساس فیلترها و مدل ML
-    """
-    with open('config/settings.json', 'r') as f:
-        config = json.load(f)
-
-    threshold = config['ml']['threshold']  # مثلاً 0.7
-    l = df.iloc[-1]
-
-    if filters_result['long'] and ml_score >= threshold:
-        return {
+    if all([structure['long'], divergence['long'], liquidity['long'], volume['long']]):
+        signal = {
             "action": "buy",
-            "entry": l['close'],
             "direction": "long",
-            "filters": filters_result['details']['long'],
-            "ml_score": round(ml_score, 2)
+            "reason": "Market Structure + Divergence + Liquidity Grab + Volume"
         }
-    elif filters_result['short'] and ml_score >= threshold:
-        return {
+
+    elif all([structure['short'], divergence['short'], liquidity['short'], volume['short']]):
+        signal = {
             "action": "sell",
-            "entry": l['close'],
             "direction": "short",
-            "filters": filters_result['details']['short'],
-            "ml_score": round(ml_score, 2)
+            "reason": "Market Structure + Divergence + Liquidity Grab + Volume"
         }
-    else:
-        return {"action": "hold"}
+
+    return signal
