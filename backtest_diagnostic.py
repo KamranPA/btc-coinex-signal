@@ -79,35 +79,7 @@ def detect_bos(df):
     }
 
 # -------------------------------
-# 🔍 فیلتر ۳: جریان نقدینگی (Liquidity Grab) — نسخه بهینه‌شده
-# -------------------------------
-def detect_liquidity_grab(df):
-    l = df.iloc[-1]  # کندل فعلی
-    p = df.iloc[-2]  # کندل قبلی
-
-    # نسبت بدنه به محدوده کندل قبلی (تشخیص Doji-like)
-    body = abs(p['open'] - p['close'])
-    range_ = p['high'] - p['low']
-    body_ratio = body / range_ if range_ > 0 else 0
-
-    # آیا کندل قبلی "بدنه کوچک" داشته؟ (مثل Doji)
-    is_doji_like = body_ratio < 0.5  # ← اصلاح: از 0.4 به 0.5 (کمتر سفت)
-
-    # آیا حجم کندل فعلی بالا بوده؟
-    volume_avg = df['volume'].tail(10).mean()
-    volume_ok = l['volume'] > 1.3 * volume_avg  # ← کمی ساده‌تر
-
-    # آیا کندل فعلی شکست قوی داشته؟
-    strong_break_long = l['close'] > p['high']
-    strong_break_short = l['close'] < p['low']
-
-    return {
-        "long": is_doji_like and strong_break_long and volume_ok,
-        "short": is_doji_like and strong_break_short and volume_ok
-    }
-
-# -------------------------------
-# 🔍 فیلتر ۴: واگرایی RSI
+# 🔍 فیلتر ۳: واگرایی RSI
 # -------------------------------
 def detect_divergence(df):
     if len(df) < 5:
@@ -140,7 +112,6 @@ def run_diagnostic(df):
         # اعمال هر فیلتر
         s = check_structure(temp_df)
         b = detect_bos(temp_df)
-        lq = detect_liquidity_grab(temp_df)
         d = detect_divergence(temp_df)
 
         # ذخیره نتایج
@@ -151,8 +122,6 @@ def run_diagnostic(df):
             "structure_short": s['short'],
             "bos_long": b['long'],
             "bos_short": b['short'],
-            "liquidity_long": lq['long'],
-            "liquidity_short": lq['short'],
             "divergence_long": d['long'],
             "divergence_short": d['short']
         })
@@ -167,42 +136,40 @@ def generate_diagnostic_report(diag_df):
     if total == 0:
         return "❌ داده کافی برای تحلیل وجود ندارد."
 
-    report = "🔍 <b>گزارش تشخیصی فیلترها (نسخه بهینه)</b>\n"
+    report = "🔍 <b>گزارش تشخیصی فیلترها (بدون liquidity)</b>\n"
     report += f"📅 دوره: {START_DATE} تا {END_DATE}\n"
     report += f"📌 جفت: {SYMBOL} | ⏱ تایم‌فریم: {TIMEFRAME}\n\n"
 
-    for name in ['structure', 'bos', 'liquidity', 'divergence']:
+    for name in ['structure', 'bos', 'divergence']:
         long_count = diag_df[f"{name}_long"].sum()
         short_count = diag_df[f"{name}_short"].sum()
         report += f"🔹 <b>{name.upper()}</b>\n"
         report += f"  ✅ لانگ: {long_count}\n"
         report += f"  🔻 شورت: {short_count}\n\n"
 
-    # تحلیل ترکیبی: همه ۴ فیلتر هم‌زمان
+    # تحلیل ترکیبی: هر ۳ فیلتر هم‌زمان
     all_long = (
         (diag_df['structure_long'] & 
          diag_df['bos_long'] & 
-         diag_df['liquidity_long'] & 
          diag_df['divergence_long'])
     ).sum()
 
     all_short = (
         (diag_df['structure_short'] & 
          diag_df['bos_short'] & 
-         diag_df['liquidity_short'] & 
          diag_df['divergence_short'])
     ).sum()
 
-    report += "🎯 <b>ترکیب کامل (همه ۴ فیلتر)</b>\n"
+    report += "🎯 <b>ترکیب کامل (ساختار + BOS + واگرایی)</b>\n"
     report += f"  ✅ لانگ: {all_long}\n"
     report += f"  🔻 شورت: {all_short}\n"
 
     if all_long > 0 or all_short > 0:
         report += f"\n✅ {all_long + all_short} سیگنال نهادی شناسایی شد."
     else:
-        report += "\n🟡 هیچ سیگنالی با ترکیب کامل تولید نشد — بررسی فیلترها لازم است."
+        report += "\n🟡 هیچ سیگنالی با ترکیب کامل تولید نشد."
 
-    report += "\n\n#تشخیص #نهادی #اصولی"
+    report += "\n\n#تشخیص #نهادی #بدون_نقدینگی"
 
     return report
 
@@ -226,7 +193,7 @@ def send_telegram(message):
 # 7. اجرای اصلی
 # -------------------------------
 def main():
-    print(f"🔍 شروع تحلیل تشخیصی: {START_DATE} تا {END_DATE}")
+    print(f"🔍 شروع تحلیل تشخیصی (بدون liquidity): {START_DATE} تا {END_DATE}")
     df = fetch_data()
     
     if df is None or len(df) < 10:
