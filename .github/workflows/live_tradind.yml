@@ -1,14 +1,9 @@
-name: Execute Trading System
+name: Run Trading System
 
 on:
   schedule:
     - cron: '*/15 3-20 * * *'
   workflow_dispatch:
-    inputs:
-      force_run:
-        description: 'اجرا خارج از ساعات بازار؟'
-        type: boolean
-        default: false
 
 jobs:
   run-trading:
@@ -28,6 +23,7 @@ jobs:
         wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib && ./configure --prefix=/usr && make && sudo make install
+        cd ..
 
     - name: Install Python packages
       run: |
@@ -37,6 +33,8 @@ jobs:
 
     - name: Create directories
       run: |
+        mkdir -p logs
+        mkdir -p results
         mkdir -p src/logs
         mkdir -p src/results
 
@@ -52,4 +50,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: trading-logs
-        path: src/logs/
+        path: logs/
+        retention-days: 3
