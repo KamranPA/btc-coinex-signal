@@ -1,0 +1,40 @@
+name: Live Bitcoin Trading
+
+on:
+  schedule:
+‎    # هر ۱۵ دقیقه بین ساعات 03:00 تا 20:30 UTC اجرا شود
+    - cron: '*/15 3-20 * * *'
+    - cron: '0,15,30 20 * * *'  # فقط ساعت 20:00, 20:15, 20:30
+  workflow_dispatch:
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib && ./configure --prefix=/usr && make && sudo make install
+        cd ..
+
+    - name: Install Python dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run Live Trading
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        python src/main.py --mode live
