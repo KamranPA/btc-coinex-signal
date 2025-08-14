@@ -17,47 +17,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
         
-    - name: Verify repository structure
-      run: |
-        ls -la
-        ls -la src/
-        
-    - name: Set up Python
+    - name: Set up Python 3.9  # تغییر به نسخه 3.9
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.9'
         
-    - name: Install TA-Lib
+    - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential
+        sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
         wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib && ./configure --prefix=/usr && make && sudo make install
         
     - name: Install Python dependencies
       run: |
+        python -m pip install --upgrade pip
+        pip install wheel
         pip install -r requirements.txt
         
     - name: Create directories
       run: |
-        mkdir -p logs
-        mkdir -p results
+        mkdir -p src/logs
+        mkdir -p src/results
         
     - name: Run backtest
+      working-directory: ./src
       run: |
-        cd src && python main.py --mode backtest \
+        python main.py --mode backtest \
           --start ${{ github.event.inputs.start_date || '2023-01-01' }} \
           --end ${{ github.event.inputs.end_date || '2023-12-31' }}
-          
-    - name: Upload results
-      uses: actions/upload-artifact@v4
-      with:
-        name: backtest-results
-        path: |
-          results/
-          logs/
-        retention-days: 3
