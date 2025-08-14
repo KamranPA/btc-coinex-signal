@@ -1,5 +1,4 @@
 # requirements.txt
-pybit @ https://github.com/Bybit-Exchange/pybit/archive/refs/tags/v2.6.0.tar.gz
 python-binance @ https://github.com/sammchardy/python-binance/archive/refs/tags/v1.0.19.tar.gz
 python-kucoin @ https://github.com/sammchardy/python-kucoin/archive/refs/tags/v2.0.2.tar.gz
 TA-Lib==0.4.24
