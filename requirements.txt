@@ -1,7 +1,7 @@
 # requirements.txt
-python-binance==1.0.19  # نسخه پایدارتر
-python-kucoin==2.0.2
-pybit==1.7.1
+pybit @ https://github.com/verata-veritatis/pybit/archive/refs/tags/v2.6.0.tar.gz
+python-binance @ https://github.com/sammchardy/python-binance/archive/refs/tags/v1.0.19.tar.gz
+python-kucoin @ https://github.com/sammchardy/python-kucoin/archive/refs/tags/v2.0.2.tar.gz
 TA-Lib==0.4.24
 pandas==1.5.3
 numpy==1.24.4
