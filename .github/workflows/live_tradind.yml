@@ -1,76 +1,139 @@
+#!/usr/bin/env python3
 import os
 import time
-import schedule
-from datetime import datetime, time as dt_time, timedelta
+import argparse
+from datetime import datetime, time, timedelta
 from exchange_connector import ExchangeConnector
 from strategy_engine import InstitutionalStrategy
 from trade_logger import TradeLogger
 from telegram_bot import send_signal
-from config import SYMBOL, TIMEFRAME
+import config
 
-class LiveTrading:
+class TradeExecutor:
     def __init__(self):
         self.connector = ExchangeConnector()
         self.strategy = InstitutionalStrategy()
         self.logger = TradeLogger()
-        self.last_signal = None
+        self.last_check = None
 
-    def is_market_open(self):
-        """بررسی آیا بازار باز است (03:00 تا 20:30 UTC)"""
+    def is_market_active(self):
+        """بررسی آیا بازار در ساعات فعال است (03:00 تا 20:30 UTC)"""
         now = datetime.utcnow()
-        market_open = dt_time(3, 0)
-        market_close = dt_time(20, 30)
-        return market_open <= now.time() <= market_close
+        return time(3, 0) <= now.time() <= time(20, 30)
 
-    def time_until_open(self):
-        """محاسبه زمان باقیمانده تا بازگشایی بازار"""
+    def time_until_market_open(self):
+        """محاسبه زمان باقیمانده تا باز شدن بازار"""
         now = datetime.utcnow()
-        if now.time() > dt_time(20, 30):
-            # فردا ساعت 03:00
+        if now.time() > time(20, 30):
             next_open = (now + timedelta(days=1)).replace(hour=3, minute=0, second=0)
         else:
-            # امروز ساعت 03:00
             next_open = now.replace(hour=3, minute=0, second=0)
         return (next_open - now).total_seconds()
 
-    def check_market(self):
-        """بررسی بازار و شناسایی سیگنالها"""
+    def execute_trade_check(self, force=False):
+        """اجرای یک چرخه کامل بررسی و معامله"""
         try:
-            if not self.is_market_open():
-                print(f"⏳ بازار بسته است. بررسی بعدی در {self.time_until_open()/60:.1f} دقیقه")
-                return
+            current_time = datetime.utcnow()
+            
+            if not force and not self.is_market_active():
+                print(f"⏳ بازار بسته است. بازگشایی در {self.time_until_market_open()/60:.1f} دقیقه")
+                return False
 
-            print(f"\n🔍 بررسی بازار در {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+            print(f"\n{'='*40}")
+            print(f"🔎 بررسی بازار در {current_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
             
             # دریافت داده‌های بازار
-            df = self.connector.fetch_data(symbol=SYMBOL, interval=TIMEFRAME, limit=100)
+            market_data = self.connector.fetch_data(
+                symbol=config.SYMBOL,
+                interval=config.TIMEFRAME,
+                limit=100
+            )
             
-            # محاسبه سیگنال
-            df = self.strategy.calculate(df)
-            latest = df.iloc[-1]
+            # تحلیل و شناسایی سیگنال
+            analyzed_data = self.strategy.calculate(market_data)
+            latest_signal = analyzed_data.iloc[-1]
             
-            if latest['signal'] == 1 and self.last_signal != latest['timestamp']:
-                signal_data = {
-                    'symbol': SYMBOL,
-                    'signal': 1,
-                    'entry': latest['close'],
-                    'sl': latest['stop_loss'],
-                    'tp': latest['take_profit'],
-                    'timestamp': latest['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+            if latest_signal['signal'] == 1:
+                trade_details = {
+                    'symbol': config.SYMBOL,
+                    'entry': latest_signal['close'],
+                    'sl': latest_signal['stop_loss'],
+                    'tp': latest_signal['take_profit'],
+                    'timestamp': latest_signal['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
                 }
                 
-                self.logger.log_signal(signal_data)
-                send_signal(signal_data)
-                self.last_signal = latest['timestamp']
-                print(f"🚀 سیگنال جدید شناسایی شد! قیمت ورود: {signal_data['entry']:.2f}")
-            else:
-                print("🔍 هیچ سیگنال جدیدی شناسایی نشد")
-                
+                # ثبت و ارسال سیگنال
+                self.logger.log_trade(trade_details)
+                send_signal(trade_details)
+                print(f"🚀 سیگنال خرید شناسایی شد!")
+                print(f"• قیمت ورود: {trade_details['entry']:.2f}")
+                print(f"• حد ضرر: {trade_details['sl']:.2f}")
+                print(f"• حد سود: {trade_details['tp']:.2f}")
+                return True
+            
+            print("🔍 هیچ سیگنال معاملاتی شناسایی نشد")
+            return False
+            
         except Exception as e:
-            print(f"❌ خطا در بررسی بازار: {str(e)}")
+            print(f"❌ خطا در اجرای معامله: {str(e)}")
+            return False
 
-    def start(self, interval=900):
-        """شروع سیستم معاملاتی"""
-        print("🚀 شروع سیستم معاملاتی زنده")
-        print(f"🔎 نماد: {SYMBOL} | تایم‌فریم: {TIMEFRAME}")
-        print
+    def run_continuous(self, interval=900):
+        """حالت اجرای خودکار پیوسته"""
+        print("🔄 شروع سیستم معاملاتی خودکار")
+        print(f"⏰ فاصله بررسی: هر {interval//60} دقیقه")
+        
+        while True:
+            if self.is_market_active():
+                self.execute_trade_check()
+            else:
+                sleep_time = self.time_until_market_open()
+                print(f"💤 بازار بسته است. خواب به مدت {sleep_time/3600:.1f} ساعت")
+                time.sleep(sleep_time)
+            
+            time.sleep(interval)
+
+    def run_manual(self, force=False):
+        """حالت اجرای دستی"""
+        print("\n🖱️ اجرای دستی سیستم معاملاتی")
+        if force or self.is_market_active():
+            print("🔍 در حال بررسی بازار...")
+            result = self.execute_trade_check(force=True)
+            print("\n✅ بررسی کامل شد" if result else "\n🔍 بررسی انجام شد")
+        else:
+            print("⚠️ توجه: بازار در حال حاضر بسته است")
+            if input("آیا می‌خواهید ادامه دهید؟ (y/n): ").lower() == 'y':
+                self.execute_trade_check(force=True)
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='سیستم اجرای معاملات ارز دیجیتال',
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""
+مثال‌های استفاده:
+  حالت خودکار:    python run_trade.py --auto
+  بررسی دستی:     python run_trade.py
+  بررسی اجباری:   python run_trade.py --force
+"""
+    )
+    parser.add_argument('--auto', action='store_true', help='حالت اجرای خودکار')
+    parser.add_argument('--force', action='store_true', help='اجرای بررسی خارج از ساعات بازار')
+    parser.add_argument('--interval', type=int, default=900, 
+                      help='فاصله بررسی در حالت خودکار (ثانیه، پیش‌فرض: 900 (15 دقیقه))')
+    
+    args = parser.parse_args()
+    
+    trader = TradeExecutor()
+    
+    try:
+        if args.auto:
+            trader.run_continuous(interval=args.interval)
+        else:
+            trader.run_manual(force=args.force)
+    except KeyboardInterrupt:
+        print("\n🛑 سیستم توسط کاربر متوقف شد")
+    except Exception as e:
+        print(f"❌ خطای غیرمنتظره: {str(e)}")
+
+if __name__ == "__main__":
+    main()
