@@ -1,51 +1,63 @@
-name: Run Trading System
+name: 🚀 اجرای سیستم معاملاتی زنده
 
 on:
+  # اجرای خودکار هر 15 دقیقه از ساعت 03:00 تا 20:30 UTC
   schedule:
     - cron: '*/15 3-20 * * *'
+  
+  # امکان اجرای دستی
   workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'اجرا خارج از ساعات بازار؟'
+        type: boolean
+        default: false
+        required: false
 
 jobs:
   run-trading:
     runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
-    - name: Set up Python 3.9
+    steps:
+    - name: 🔁 دریافت کد (Checkout)
+      uses: actions/checkout@v4
+
+    - name: 🐍 تنظیم Python 3.9
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    - name: Install system dependencies
+    - name: ⚙️ نصب وابستگی‌های سیستمی
       run: |
-        sudo apt-get update
+        sudo apt-get update -y
         sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
+        # دانلود و نصب TA-Lib (برای TA-Lib==0.4.24)
         wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib && ./configure --prefix=/usr && make && sudo make install
-        cd ..
+        sudo ldconfig  # بارگیری دوباره کتابخانه‌ها
 
-    - name: Install Python packages
+    - name: 📦 نصب بسته‌های پایتون
       run: |
         python -m pip install --upgrade pip
         pip install wheel
         pip install -r requirements.txt
 
-    - name: Create directories
+    - name: 📁 ایجاد پوشه‌های مورد نیاز
       run: |
         mkdir -p logs
         mkdir -p results
         mkdir -p src/logs
         mkdir -p src/results
 
-    - name: Run Trading System
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    - name: ▶️ اجرای سیستم معاملاتی
       run: |
         cd src && python main.py --mode live
 
-    - name: Upload logs
+    - name: 📎 آپلود لاگ‌ها (در هر صورت)
       if: always()
       uses: actions/upload-artifact@v4
       with:
