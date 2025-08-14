@@ -11,45 +11,35 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
         
-    - name: Verify files
-      run: ls -la
-        
-    - name: Set up Python
+    - name: Set up Python 3.9  # تغییر به نسخه 3.9
       uses: actions/setup-python@v4
       with:
-        python-version: '3.10'
+        python-version: '3.9'
         
-    - name: Install system dependencies
+    - name: Install build dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential
+        sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
         wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib && ./configure --prefix=/usr && make && sudo make install
         
     - name: Install Python packages
       run: |
+        python -m pip install --upgrade pip
+        pip install wheel
         pip install -r requirements.txt
         
     - name: Prepare directories
       run: |
-        mkdir -p logs
-        mkdir -p results
+        mkdir -p src/logs
+        mkdir -p src/results
         
     - name: Run trading system
+      working-directory: ./src
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        cd src && python main.py --mode live
-        
-    - name: Upload logs
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: trading-logs
-        path: logs/
-        retention-days: 3
+        python main.py --mode live
