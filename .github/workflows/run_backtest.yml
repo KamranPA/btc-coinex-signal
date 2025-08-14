@@ -2,8 +2,7 @@ name: Bitcoin Trading System Backtest
 
 on:
   schedule:
-‎    # هر روز ساعت 00:00 UTC اجرا شود
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *'  # هر روز ساعت 00:00 UTC
   workflow_dispatch:
     inputs:
       start_date:
@@ -42,7 +41,7 @@ jobs:
 
     - name: Run Backtest
       run: |
-        python src/main.py --mode backtest --start ${{ github.event.inputs.start_date || '2023-01-01' }} --end ${{ github.event.inputs.end_date || '2023-12-31' }}
+        python src/main.py --mode backtest --start ${{ github.event.inputs.start_date }} --end ${{ github.event.inputs.end_date }}
       
     - name: Upload Results
       uses: actions/upload-artifact@v3
