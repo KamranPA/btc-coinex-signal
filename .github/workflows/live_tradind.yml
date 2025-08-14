@@ -1,139 +1,77 @@
-#!/usr/bin/env python3
-import os
-import time
-import argparse
-from datetime import datetime, time, timedelta
-from exchange_connector import ExchangeConnector
-from strategy_engine import InstitutionalStrategy
-from trade_logger import TradeLogger
-from telegram_bot import send_signal
-import config
+name: Execute Trading System
 
-class TradeExecutor:
-    def __init__(self):
-        self.connector = ExchangeConnector()
-        self.strategy = InstitutionalStrategy()
-        self.logger = TradeLogger()
-        self.last_check = None
+on:
+  schedule:
+    # اجرای خودکار هر 15 دقیقه در ساعات فعال بازار (03:00-20:30 UTC)
+    - cron: '*/15 3-20 * * *'
+    - cron: '0,15,30 20 * * *'
+  
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'اجرا خارج از ساعات بازار؟'
+        type: boolean
+        default: false
+        required: false
+      check_interval:
+        description: 'فاصله بررسی (دقیقه)'
+        type: number
+        default: 15
+        required: false
 
-    def is_market_active(self):
-        """بررسی آیا بازار در ساعات فعال است (03:00 تا 20:30 UTC)"""
-        now = datetime.utcnow()
-        return time(3, 0) <= now.time() <= time(20, 30)
+jobs:
+  run-trading:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    def time_until_market_open(self):
-        """محاسبه زمان باقیمانده تا باز شدن بازار"""
-        now = datetime.utcnow()
-        if now.time() > time(20, 30):
-            next_open = (now + timedelta(days=1)).replace(hour=3, minute=0, second=0)
-        else:
-            next_open = now.replace(hour=3, minute=0, second=0)
-        return (next_open - now).total_seconds()
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
 
-    def execute_trade_check(self, force=False):
-        """اجرای یک چرخه کامل بررسی و معامله"""
-        try:
-            current_time = datetime.utcnow()
-            
-            if not force and not self.is_market_active():
-                print(f"⏳ بازار بسته است. بازگشایی در {self.time_until_market_open()/60:.1f} دقیقه")
-                return False
-
-            print(f"\n{'='*40}")
-            print(f"🔎 بررسی بازار در {current_time.strftime('%Y-%m-%d %H:%M:%S')} UTC")
-            
-            # دریافت داده‌های بازار
-            market_data = self.connector.fetch_data(
-                symbol=config.SYMBOL,
-                interval=config.TIMEFRAME,
-                limit=100
-            )
-            
-            # تحلیل و شناسایی سیگنال
-            analyzed_data = self.strategy.calculate(market_data)
-            latest_signal = analyzed_data.iloc[-1]
-            
-            if latest_signal['signal'] == 1:
-                trade_details = {
-                    'symbol': config.SYMBOL,
-                    'entry': latest_signal['close'],
-                    'sl': latest_signal['stop_loss'],
-                    'tp': latest_signal['take_profit'],
-                    'timestamp': latest_signal['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
-                }
-                
-                # ثبت و ارسال سیگنال
-                self.logger.log_trade(trade_details)
-                send_signal(trade_details)
-                print(f"🚀 سیگنال خرید شناسایی شد!")
-                print(f"• قیمت ورود: {trade_details['entry']:.2f}")
-                print(f"• حد ضرر: {trade_details['sl']:.2f}")
-                print(f"• حد سود: {trade_details['tp']:.2f}")
-                return True
-            
-            print("🔍 هیچ سیگنال معاملاتی شناسایی نشد")
-            return False
-            
-        except Exception as e:
-            print(f"❌ خطا در اجرای معامله: {str(e)}")
-            return False
-
-    def run_continuous(self, interval=900):
-        """حالت اجرای خودکار پیوسته"""
-        print("🔄 شروع سیستم معاملاتی خودکار")
-        print(f"⏰ فاصله بررسی: هر {interval//60} دقیقه")
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          libssl-dev \
+          libffi-dev \
+          python3-dev \
+          wget
         
-        while True:
-            if self.is_market_active():
-                self.execute_trade_check()
-            else:
-                sleep_time = self.time_until_market_open()
-                print(f"💤 بازار بسته است. خواب به مدت {sleep_time/3600:.1f} ساعت")
-                time.sleep(sleep_time)
-            
-            time.sleep(interval)
+        # نصب TA-Lib
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib && ./configure --prefix=/usr && make && sudo make install
 
-    def run_manual(self, force=False):
-        """حالت اجرای دستی"""
-        print("\n🖱️ اجرای دستی سیستم معاملاتی")
-        if force or self.is_market_active():
-            print("🔍 در حال بررسی بازار...")
-            result = self.execute_trade_check(force=True)
-            print("\n✅ بررسی کامل شد" if result else "\n🔍 بررسی انجام شد")
-        else:
-            print("⚠️ توجه: بازار در حال حاضر بسته است")
-            if input("آیا می‌خواهید ادامه دهید؟ (y/n): ").lower() == 'y':
-                self.execute_trade_check(force=True)
+    - name: Install Python packages
+      run: |
+        python -m pip install --upgrade pip
+        pip install wheel setuptools
+        pip install -r requirements.txt
 
-def main():
-    parser = argparse.ArgumentParser(
-        description='سیستم اجرای معاملات ارز دیجیتال',
-        formatter_class=argparse.RawTextHelpFormatter,
-        epilog="""
-مثال‌های استفاده:
-  حالت خودکار:    python run_trade.py --auto
-  بررسی دستی:     python run_trade.py
-  بررسی اجباری:   python run_trade.py --force
-"""
-    )
-    parser.add_argument('--auto', action='store_true', help='حالت اجرای خودکار')
-    parser.add_argument('--force', action='store_true', help='اجرای بررسی خارج از ساعات بازار')
-    parser.add_argument('--interval', type=int, default=900, 
-                      help='فاصله بررسی در حالت خودکار (ثانیه، پیش‌فرض: 900 (15 دقیقه))')
-    
-    args = parser.parse_args()
-    
-    trader = TradeExecutor()
-    
-    try:
-        if args.auto:
-            trader.run_continuous(interval=args.interval)
-        else:
-            trader.run_manual(force=args.force)
-    except KeyboardInterrupt:
-        print("\n🛑 سیستم توسط کاربر متوقف شد")
-    except Exception as e:
-        print(f"❌ خطای غیرمنتظره: {str(e)}")
+    - name: Create necessary directories
+      run: |
+        mkdir -p logs
+        mkdir -p results
 
-if __name__ == "__main__":
-    main()
+    - name: Run Trading System
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          python run_trade.py --auto --interval $((${{ inputs.check_interval }} * 60)) ${{ inputs.force_run && '--force' || '' }}
+        else
+          python run_trade.py --auto --interval 900
+        fi
+
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: trading-logs
+        path: logs/
+        retention-days: 3
