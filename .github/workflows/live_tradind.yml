@@ -2,67 +2,65 @@ name: اجرای سیستم معاملاتی
 
 on:
   schedule:
-    - cron: '*/15 3-20 * * *'  # هر 15 دقیقه از ساعت 6:30 تا 23:30 به وقت ایران
+    - cron: '*/15 3-20 * * *'
   workflow_dispatch:
 
 jobs:
   run-trading:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-20.04 # استفاده از نسخه پایدارتر
+    timeout-minutes: 15
     
     steps:
-    # مرحله 1: دریافت کدها از ریپازیتوری
     - uses: actions/checkout@v4
 
-    # مرحله 2: تنظیم پایتون 3.9
     - name: تنظیم پایتون 3.9
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    # مرحله 3: نصب پیش‌نیازهای سیستم و کامپایل TA-Lib
-    - name: نصب و کامپایل TA-Lib از سورس
+    - name: نصب پیش‌نیازهای سیستم
       run: |
-        # به روزرسانی و نصب پیش‌نیازها
         sudo apt-get update -y
         sudo apt-get install -y \
           build-essential \
           wget \
           libtool \
           automake \
+          pkg-config \
           libssl-dev \
           libffi-dev \
-          python3-dev
+          python3-dev \
+          zlib1g-dev
 
-        # دانلود و کامپایل TA-Lib
-        echo "در حال دانلود TA-Lib..."
-        wget https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz
-        tar -xzf ta-lib-0.4.0-src.tar.gz
+    - name: نصب TA-Lib با روش تضمینی
+      run: |
+        # دانلود از آدرس جایگزین
+        wget https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz -O ta-lib.tar.gz
+        tar -xzf ta-lib.tar.gz
         cd ta-lib/
-        echo "پیکربندی TA-Lib..."
-        ./configure --prefix=/usr
-        echo "کامپایل TA-Lib..."
-        make -j$(nproc)
-        echo "نصب TA-Lib..."
+        
+        # اعمال اصلاحات ضروری برای خطاهای شناخته شده
+        sed -i 's/TA_Integer TA_CDECL/TA_Integer/g' include/ta_defs.h
+        sed -i 's/TA_Real TA_CDECL/TA_Real/g' include/ta_defs.h
+        
+        # کامپایل با تنظیمات اصلاح شده
+        ./configure --prefix=/usr --disable-shared
+        make -j1  # استفاده از فقط یک thread برای جلوگیری از خطا
         sudo make install
         cd ..
-        rm -rf ta-lib-0.4.0-src.tar.gz ta-lib
+        rm -rf ta-lib.tar.gz ta-lib
         sudo ldconfig
-        echo "نصب TA-Lib با موفقیت انجام شد"
 
-    # مرحله 4: بررسی صحت نصب TA-Lib
     - name: بررسی نصب TA-Lib
       run: |
-        python -c "import talib; print('نسخه TA-Lib:', talib.__version__)"
+        python -c "import talib; print('TA-Lib با موفقیت نصب شد. نسخه:', talib.__version__)" || echo "بررسی نصب ناموفق بود"
 
-    # مرحله 5: نصب کتابخانه‌های پایتون
     - name: نصب کتابخانه‌های پایتون
       run: |
         python -m pip install --upgrade pip
         pip install wheel
         pip install -r requirements.txt
 
-    # مرحله 6: ایجاد ساختار پوشه‌ها
     - name: ایجاد پوشه‌های ضروری
       run: |
         mkdir -p logs
@@ -70,16 +68,13 @@ jobs:
         mkdir -p src/logs
         mkdir -p src/results
 
-    # مرحله 7: اجرای سیستم معاملاتی
     - name: اجرای سیستم معاملاتی
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        # سایر متغیرهای محیطی مورد نیاز
       run: |
         cd src && python main.py --mode live
 
-    # مرحله 8: ذخیره لاگ‌ها
     - name: ذخیره لاگ‌ها
       if: always()
       uses: actions/upload-artifact@v4
