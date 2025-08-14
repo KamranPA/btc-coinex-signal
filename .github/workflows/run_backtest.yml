@@ -1,4 +1,4 @@
-name: Bitcoin Trading System Backtest
+name: Bitcoin Trading Backtest
 
 on:
   schedule:
@@ -18,8 +18,8 @@ jobs:
   backtest:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Checkout repository
+      uses: actions/checkout@v4
 
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -35,18 +35,20 @@ jobs:
         cd ta-lib && ./configure --prefix=/usr && make && sudo make install
         cd ..
 
-    - name: Install Python dependencies
-      run: |
-        pip install -r requirements.txt
+    - name: Install Python packages
+      run: pip install -r requirements.txt
 
-    - name: Run Backtest
+    - name: Run backtest
       run: |
-        python src/main.py --mode backtest --start ${{ github.event.inputs.start_date }} --end ${{ github.event.inputs.end_date }}
-      
-    - name: Upload Results
-      uses: actions/upload-artifact@v3
+        python src/main.py --mode backtest \
+          --start ${{ inputs.start_date || '2023-01-01' }} \
+          --end ${{ inputs.end_date || '2023-12-31' }}
+
+    - name: Upload results
+      uses: actions/upload-artifact@v4
       with:
         name: backtest-results
         path: |
           results/
           logs/
+        retention-days: 7
