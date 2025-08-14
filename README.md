@@ -1,22 +1,42 @@
-# 🚀 سیستم سیگنال خودکار بیت‌کوین (CoinEx)
+# Bitcoin Institutional Trading System
 
-سیگنال‌دهی خودکار برای **BTC/USDT** در تایم‌فریم **15 دقیقه**  
-- صرافی: CoinEx  
-- فیلترهای ترکیبی  
-- حد ضرر و سود هوشمند  
-- ارسال به تلگرام  
-- اجرا با GitHub Actions  
+This system generates trading signals based on institutional trading strategies for Bitcoin on a 15-minute timeframe.
 
-## ✅ نحوه استفاده
+## Features
+- Multi-exchange support (KuCoin, Binance, Bybit)
+- Advanced institutional strategy with 5 filters
+- Daily performance reports
+- Backtesting with historical data
+- GitHub Actions integration
 
-1. ربات تلگرام بسازید و توکن و Chat ID را در `config/settings.json` وارد کنید.
-2. ریپو را بسازید.
-3. سیستم هر ۱۵ دقیقه یک‌بار اجرا می‌شود.
+## How to Run Backtests
 
-## 📂 ساختار
+1. Manual Trigger:
+   - Go to GitHub Actions
+   - Select "Run Backtest" workflow
+   - Set start and end dates (default: 2023-01-01 to 2023-12-31)
+   - Click "Run workflow"
 
-- `main.py`: نقطه ورود
-- `src/`: ماژول‌های مستقل
-- `.github/workflows/`: اجرای خودکار
+2. Scheduled Runs:
+   - Daily at 00:00 UTC
 
-## 📢 سیگنال‌ها به تلگرام ارسال می‌شوند.
+## Results
+Backtest results are available as artifacts:
+1. Daily reports in text format
+2. Equity curve charts
+3. Filter activation charts
+
+## Strategy Parameters
+```python
+STRATEGY_PARAMS = {
+    "short_ema": 20,
+    "long_ema": 50,
+    "rsi_period": 14,
+    "rsi_buy": 40,
+    "rsi_sell": 60,
+    "vol_lookback": 50,
+    "vol_std_mult": 3,
+    "atr_mult_sl": 0.5,
+    "atr_mult_tp": 3
+}
+```
