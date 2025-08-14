@@ -7,85 +7,83 @@ on:
 
 jobs:
   run-trading:
-    runs-on: ubuntu-20.04  # استفاده از نسخه پایدار اوبونتو
-    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     
     steps:
-    # مرحله 1: دریافت کدها
+    # مرحله 1: دریافت کدها از ریپازیتوری
     - uses: actions/checkout@v4
 
-    # مرحله 2: تنظیم پایتون
+    # مرحله 2: تنظیم پایتون 3.9
     - name: تنظیم پایتون 3.9
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-        architecture: 'x64'
 
-    # مرحله 3: نصب TA-Lib بدون نیاز به کامپایل
-    - name: نصب TA-Lib (روش بدون دردسر)
+    # مرحله 3: نصب پیش‌نیازهای سیستم و کامپایل TA-Lib
+    - name: نصب و کامپایل TA-Lib از سورس
       run: |
-        # استفاده از مخزن قدیمی اوبونتو
-        echo "deb http://archive.ubuntu.com/ubuntu focal universe" | sudo tee /etc/apt/sources.list.d/focal.list
-        sudo apt-get update -y
-        sudo apt-get install -y python3-ta-lib
-        sudo rm /etc/apt/sources.list.d/focal.list
-        sudo apt-get update -y  # بازگشت به مخازن اصلی
-
-    # مرحله 4: نصب سایر پیش‌نیازها
-    - name: نصب پیش‌نیازهای سیستم
-      run: |
+        # به روزرسانی و نصب پیش‌نیازها
         sudo apt-get update -y
         sudo apt-get install -y \
-          python3-dev \
           build-essential \
+          wget \
+          libtool \
+          automake \
           libssl-dev \
-          libffi-dev
+          libffi-dev \
+          python3-dev
 
-    # مرحله 5: تنظیم محیط پایتون
-    - name: تنظیم محیط پایتون
+        # دانلود و کامپایل TA-Lib
+        echo "در حال دانلود TA-Lib..."
+        wget https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib/
+        echo "پیکربندی TA-Lib..."
+        ./configure --prefix=/usr
+        echo "کامپایل TA-Lib..."
+        make -j$(nproc)
+        echo "نصب TA-Lib..."
+        sudo make install
+        cd ..
+        rm -rf ta-lib-0.4.0-src.tar.gz ta-lib
+        sudo ldconfig
+        echo "نصب TA-Lib با موفقیت انجام شد"
+
+    # مرحله 4: بررسی صحت نصب TA-Lib
+    - name: بررسی نصب TA-Lib
       run: |
-        python -m pip install --upgrade pip
-        pip install wheel setuptools
+        python -c "import talib; print('نسخه TA-Lib:', talib.__version__)"
 
-    # مرحله 6: نصب کتابخانه‌ها
+    # مرحله 5: نصب کتابخانه‌های پایتون
     - name: نصب کتابخانه‌های پایتون
       run: |
+        python -m pip install --upgrade pip
+        pip install wheel
         pip install -r requirements.txt
-        # نصب TA-Lib برای پایتون (اگر نیاز بود)
-        pip install TA-Lib --pre --no-cache-dir || echo "نصب TA-Lib اختیاری بود"
 
-    # مرحله 7: بررسی نصب
-    - name: بررسی محیط اجرا
-      run: |
-        python -c "print('بررسی محیط پایتون:')"
-        python -c "import sys; print(f'نسخه پایتون: {sys.version}')"
-        python -c "try: import talib; print('TA-Lib:', talib.__version__); except: print('TA-Lib یافت نشد')"
-
-    # مرحله 8: آماده‌سازی ساختار فایل‌ها
-    - name: ایجاد ساختار پوشه‌ها
+    # مرحله 6: ایجاد ساختار پوشه‌ها
+    - name: ایجاد پوشه‌های ضروری
       run: |
         mkdir -p logs
         mkdir -p results
         mkdir -p src/logs
         mkdir -p src/results
-        touch logs/trading.log
 
-    # مرحله 9: اجرای سیستم
+    # مرحله 7: اجرای سیستم معاملاتی
     - name: اجرای سیستم معاملاتی
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        PYTHONUNBUFFERED: 1  # برای مشاهده لاگ‌های بلادرنگ
+        # سایر متغیرهای محیطی مورد نیاز
       run: |
         cd src && python main.py --mode live
 
-    # مرحله 10: ذخیره نتایج
-    - name: ذخیره خروجی‌ها
+    # مرحله 8: ذخیره لاگ‌ها
+    - name: ذخیره لاگ‌ها
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: trading-results
-        path: |
-          logs/
-          results/
-        retention-days: 7
+        name: trading-logs
+        path: logs/
+        retention-days: 3
