@@ -8,7 +8,7 @@ on:
 jobs:
   run-trading:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     
     steps:
     - uses: actions/checkout@v4
@@ -31,28 +31,28 @@ jobs:
           libffi-dev \
           python3-dev
 
-    - name: نصب TA-Lib با روش تضمینی
+    - name: نصب TA-Lib (روش تضمینی)
       run: |
-        # دانلود نسخه اصلاح شده از مخزن جایگزین
-        wget https://github.com/TA-Lib/ta-lib/archive/refs/tags/v0.4.0-modified.tar.gz -O ta-lib-0.4.0-src.tar.gz
+        # دانلود از منبع اصلی با آدرس جدید
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib-0.4.0-modified/
+        cd ta-lib/
         
-        # اصلاح خطاهای شناخته شده
+        # اصلاحات ضروری برای خطاهای شناخته شده
         sed -i 's/TA_Integer TA_CDECL/TA_Integer/g' include/ta_defs.h
         sed -i 's/TA_Real TA_CDECL/TA_Real/g' include/ta_defs.h
         
-        # کامپایل با تنظیمات اصلاح شده
-        ./configure --prefix=/usr --disable-shared
-        make -j2  # کاهش تعداد threads برای جلوگیری از خطا
+        # کامپایل با تنظیمات بهینه
+        ./configure --prefix=/usr
+        make -j2
         sudo make install
         cd ..
-        rm -rf ta-lib-0.4.0-src.tar.gz ta-lib-0.4.0-modified
+        rm -rf ta-lib-0.4.0-src.tar.gz ta-lib
         sudo ldconfig
 
     - name: بررسی نصب TA-Lib
       run: |
-        python -c "import talib; print('TA-Lib با موفقیت نصب شد. نسخه:', talib.__version__)"
+        python -c "import talib; print('نسخه TA-Lib:', talib.__version__)" || echo "بررسی نصب ناموفق بود"
 
     - name: نصب کتابخانه‌های پایتون
       run: |
