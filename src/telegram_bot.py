@@ -1,12 +1,15 @@
+# src/telegram_bot.py
 import requests
 import config
+import logging
 
-def send_signal(signal_data):
-‎    # فقط اگر توکن تنظیم شده باشد ارسال می‌کند
+logging.basicConfig(level=logging.INFO)
+
+def send_signal(signal_data: dict):
     if not config.TELEGRAM_BOT_TOKEN or not config.TELEGRAM_CHAT_ID:
-        print("Telegram credentials not set. Skipping send.")
+        print("⚠️ Telegram credentials not set. Skipping send.")
         return
-        
+
     message = (
         f"🚀 سیگنال جدید {signal_data['symbol']} ({config.TIMEFRAME})\n"
         f"نوع: {'خرید' if signal_data['signal'] == 1 else 'فروش'}\n"
@@ -15,15 +18,19 @@ def send_signal(signal_data):
         f"حد سود: {signal_data['tp']:.2f}\n"
         f"زمان: {signal_data['timestamp']}"
     )
-    
+
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         'chat_id': config.TELEGRAM_CHAT_ID,
-        'text': message
+        'text': message,
+        'parse_mode': 'HTML'
     }
-    
+
     try:
-        response = requests.post(url, json=payload)
-        print(f"Telegram response: {response.status_code}")
-    except Exception as e:
-        print(f"Failed to send Telegram message: {str(e)}")
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            print("✅ Signal sent to Telegram.")
+        else:
+            print(f"❌ Telegram API error: {response.status_code} - {response.text}")
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Failed to send Telegram message: {str(e)}")
