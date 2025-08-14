@@ -1,39 +1,53 @@
-# .github/workflows/backtest.yml
-name: 📊 بک‌تست دستی با انتخاب تاریخ
+name: Bitcoin Trading System Backtest
 
 on:
+  schedule:
+‎    # هر روز ساعت 00:00 UTC اجرا شود
+    - cron: '0 0 * * *'
   workflow_dispatch:
     inputs:
       start_date:
-        description: 'تاریخ شروع (فرمت: YYYY-MM-DD)'
+        description: 'Start date (YYYY-MM-DD)'
         required: true
-        default: '2025-04-01'
+        default: '2023-01-01'
       end_date:
-        description: 'تاریخ پایان (فرمت: YYYY-MM-DD)'
+        description: 'End date (YYYY-MM-DD)'
         required: true
-        default: '2025-05-01'
+        default: '2023-12-31'
 
 jobs:
   backtest:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout کد
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: نصب پایتون 3.11
-        uses: actions/setup-python@v4
-        with:
-          python-version: 3.11
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-      - name: نصب کتابخانه‌ها
-        run: |
-          pip install ccxt pandas requests
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
+        tar -xzf ta-lib-0.4.0-src.tar.gz
+        cd ta-lib && ./configure --prefix=/usr && make && sudo make install
+        cd ..
 
-      - name: جایگزینی تاریخ در backtest.py
-        run: |
-          echo "📅 تنظیم بازه زمانی: ${{ github.event.inputs.start_date }} تا ${{ github.event.inputs.end_date }}"
-          sed -i "s|START_DATE = '.*'|START_DATE = '${{ github.event.inputs.start_date }}'|g" backtest.py
-          sed -i "s|END_DATE = '.*'|END_DATE = '${{ github.event.inputs.end_date }}'|g" backtest.py
+    - name: Install Python dependencies
+      run: |
+        pip install -r requirements.txt
 
-      - name: اجرای بک‌تست
-        run: python backtest.py
+    - name: Run Backtest
+      run: |
+        python src/main.py --mode backtest --start ${{ github.event.inputs.start_date || '2023-01-01' }} --end ${{ github.event.inputs.end_date || '2023-12-31' }}
+      
+    - name: Upload Results
+      uses: actions/upload-artifact@v3
+      with:
+        name: backtest-results
+        path: |
+          results/
+          logs/
