@@ -14,11 +14,11 @@ on:
 
 jobs:
   backtest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  # استفاده از Ubuntu 22.04 به جای latest
     steps:
     - uses: actions/checkout@v4
         
-    - name: Set up Python 3.9  # تغییر به نسخه 3.9
+    - name: Set up Python 3.9
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
@@ -26,7 +26,14 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
+        sudo apt-get install -y \
+          build-essential \
+          libssl-dev \
+          libffi-dev \
+          python3-dev \
+          wget
+        
+        # نصب TA-Lib
         wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib && ./configure --prefix=/usr && make && sudo make install
@@ -34,13 +41,14 @@ jobs:
     - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install wheel
-        pip install -r requirements.txt
+        pip install wheel setuptools
+        pip install -r requirements.txt --no-cache-dir
         
-    - name: Create directories
+    - name: Verify installations
       run: |
-        mkdir -p src/logs
-        mkdir -p src/results
+        pip list
+        python -c "import pybit; print(f'pybit version: {pybit.__version__}')"
+        python -c "import binance; print(f'python-binance version: {binance.__version__}')"
         
     - name: Run backtest
       working-directory: ./src
