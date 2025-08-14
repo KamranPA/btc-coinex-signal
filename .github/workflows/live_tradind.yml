@@ -2,52 +2,50 @@ name: Live Bitcoin Trading
 
 on:
   schedule:
-    - cron: '*/15 3-20 * * *'    # هر 15 دقیقه بین 03:00-20:00 UTC
-    - cron: '0,15,30 20 * * *'   # دقیقاً در 20:00, 20:15, 20:30 UTC
+    - cron: '*/15 3-20 * * *'
+    - cron: '0,15,30 20 * * *'
   workflow_dispatch:
-    inputs:
-      force_run:
-        description: 'Run during inactive hours?'
-        type: boolean
-        default: false
-        required: false
 
 jobs:
   trade:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Verify files
+      run: ls -la
+        
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
-
-    - name: Install dependencies
+        
+    - name: Install system dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential
         wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
         tar -xzf ta-lib-0.4.0-src.tar.gz
         cd ta-lib && ./configure --prefix=/usr && make && sudo make install
+        
+    - name: Install Python packages
+      run: |
         pip install -r requirements.txt
-
+        
+    - name: Prepare directories
+      run: |
+        mkdir -p logs
+        mkdir -p results
+        
     - name: Run trading system
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          if [ "${{ inputs.force_run }}" = "true" ]; then
-            python src/main.py --mode manual --force
-          else
-            python src/main.py --mode manual
-          fi
-        else
-          python src/main.py --mode live
-        fi
-
+        cd src && python main.py --mode live
+        
     - name: Upload logs
       if: always()
       uses: actions/upload-artifact@v4
