@@ -10,86 +10,41 @@ from telegram_bot import send_signal
 from daily_reporter import DailyReporter
 import config
 import schedule
+import argparse
 
-def is_trading_active():
-    """
-    بررسی آیا سیستم باید فعال باشد یا خیر
-    فعال در ساعات 03:00 تا 20:30 UTC
-    """
-    now_utc = datetime.utcnow()
-    current_time = now_utc.time()
-    
-    # تعریف بازه‌های زمانی فعال
-    active_start = time(3, 0)      # 03:00 UTC
-    active_end = time(20, 30)      # 20:30 UTC
-    
-    # اگر زمان فعلی بین 03:00 تا 20:30 باشد
-    if active_start <= current_time <= active_end:
-        return True
-    
-    return False
+class TradingSystem:
+    def __init__(self):
+        self.connector = ExchangeConnector()
+        self.strategy = InstitutionalStrategy()
+        self.logger = TradeLogger()
+        self.last_run = None
 
-def calculate_sleep_time():
-    """محاسبه زمان خواب تا فعال شدن مجدد سیستم"""
-    now_utc = datetime.utcnow()
-    
-    # اگر بعد از 20:30 UTC هستیم
-    if now_utc.time() > time(20, 30):
-        # فعال شدن در 03:00 فردا
-        next_day = now_utc + timedelta(days=1)
-        wakeup_time = datetime(next_day.year, next_day.month, next_day.day, 3, 0)
-    else:  # اگر قبل از 03:00 UTC هستیم
-        # فعال شدن در 03:00 امروز
-        wakeup_time = datetime(now_utc.year, now_utc.month, now_utc.day, 3, 0)
-    
-    return (wakeup_time - now_utc).total_seconds()
+    def is_trading_active(self):
+        """بررسی زمان فعال بودن سیستم (03:00 تا 20:30 UTC)"""
+        now_utc = datetime.utcnow()
+        current_time = now_utc.time()
+        return time(3, 0) <= current_time <= time(20, 30)
 
-def generate_daily_report(strategy, logger):
-    """تولید و ارسال گزارش روزانه"""
-    reporter = DailyReporter(logger, strategy.get_filter_stats())
-    report = reporter.generate_report()
-    strategy.reset_stats()
-    logger.clear_log()
-    print("Daily report generated and sent")
+    def calculate_sleep_time(self):
+        """محاسبه زمان باقیمانده تا فعال شدن مجدد"""
+        now_utc = datetime.utcnow()
+        if now_utc.time() > time(20, 30):
+            return ((now_utc + timedelta(days=1)).replace(hour=3, minute=0, second=0) - now_utc).total_seconds()
+        else:
+            return (now_utc.replace(hour=3, minute=0, second=0) - now_utc).total_seconds()
 
-def run_live():
-    """اجرای اصلی سیستم در حالت معاملات زنده"""
-    print("Starting live trading system...")
-    print(f"Current UTC time: {datetime.utcnow()}")
-    
-    connector = ExchangeConnector()
-    strategy = InstitutionalStrategy()
-    logger = TradeLogger()
-    
-    # زمان‌بندی برای گزارش روزانه (هر روز ساعت 20:25 UTC)
-    schedule.every().day.at("20:25").do(
-        lambda: generate_daily_report(strategy, logger)
-    )
-    
-    while True:
+    def run_single_check(self):
+        """اجرای یک چرخه کامل بررسی سیگنال"""
         try:
-            # اجرای وظایف زمان‌بندی شده (گزارش روزانه)
-            schedule.run_pending()
-            
-            # بررسی زمان فعال بودن سیستم
-            if not is_trading_active():
-                sleep_seconds = calculate_sleep_time()
-                print(f"System sleeping. Will resume at {datetime.utcnow() + timedelta(seconds=sleep_seconds)} UTC")
-                time.sleep(sleep_seconds)
-                continue
-            
             print(f"\n{'='*50}")
-            print(f"Fetching new data at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+            print(f"Checking at {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
             
-            # دریافت داده‌های جدید (100 کندل آخر)
-            df = connector.fetch_data(limit=100)
-            print(f"Data fetched from {connector.connected_exchange}")
+            df = self.connector.fetch_data(limit=100)
+            print(f"Data from {self.connector.connected_exchange}")
             
-            # محاسبه سیگنال با استراتژی نهادی
-            df = strategy.calculate(df)
+            df = self.strategy.calculate(df)
             latest = df.iloc[-1]
             
-            # بررسی وجود سیگنال جدید
             if latest['signal'] == 1:
                 signal_data = {
                     'symbol': config.SYMBOL,
@@ -100,118 +55,118 @@ def run_live():
                     'timestamp': latest['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
                 }
                 
-                # ثبت سیگنال در سیستم
-                logger.log_signal(signal_data)
-                print(f"New signal detected at {signal_data['timestamp']}")
-                print(f"Entry: {signal_data['entry']:.2f}, SL: {signal_data['sl']:.2f}, TP: {signal_data['tp']:.2f}")
-                
-                # ارسال سیگنال به تلگرام
+                self.logger.log_signal(signal_data)
+                print(f"Signal detected: Entry {signal_data['entry']:.2f}")
                 send_signal(signal_data)
-                print("Signal sent to Telegram")
+                return True
             else:
-                print("No new signals detected")
-            
-            # نمایش آماری فیلترها
-            print("\nFilter Statistics:")
-            for filter_name, count in strategy.get_filter_stats().items():
-                print(f"- {filter_name}: {count} times")
-            
-            print(f"{'='*50}\n")
-            
+                print("No signal detected")
+                return False
+                
         except Exception as e:
-            print(f"Error: {str(e)}")
+            print(f"Error in check: {str(e)}")
+            return False
+
+    def run_continuous(self):
+        """حالت اجرای خودکار پیوسته"""
+        print("Starting continuous trading mode...")
+        schedule.every().day.at("20:25").do(self.generate_daily_report)
         
-        # انتظار 15 دقیقه تا اجرای بعدی
-        print(f"Waiting 15 minutes until next check...")
-        time.sleep(900)
+        while True:
+            if not self.is_trading_active():
+                sleep_time = self.calculate_sleep_time()
+                print(f"System sleeping until {datetime.utcnow() + timedelta(seconds=sleep_time)} UTC")
+                time.sleep(sleep_time)
+                continue
+                
+            self.run_single_check()
+            time.sleep(900)  # 15 دقیقه انتظار
 
-def run_backtest(start_date, end_date):
-    """اجرای سیستم در حالت بک‌تست"""
-    print("Starting backtest...")
-    print(f"Period: {start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}")
-    
-    connector = ExchangeConnector()
-    strategy = InstitutionalStrategy()
-    logger = TradeLogger()
-    
-    # دریافت داده‌های تاریخی
-    print("\nFetching historical data...")
-    all_data = []
-    current_date = start_date
-    
-    while current_date <= end_date:
-        print(f"- Fetching data for {current_date.strftime('%Y-%m')}")
-        df = connector.fetch_data(limit=500)
-        all_data.append(df)
-        current_date += timedelta(days=30)
-    
-    full_df = pd.concat(all_data).drop_duplicates().sort_values('timestamp')
-    print(f"Total data points: {len(full_df)}")
-    
-    # محاسبه سیگنال‌ها
-    print("\nCalculating signals...")
-    full_df = strategy.calculate(full_df)
-    
-    # اجرای بک‌تست
-    print("\nRunning backtest...")
-    from backtester import Backtester
-    backtester = Backtester(strategy.get_filter_stats())
-    results = backtester.backtest(full_df)
-    
-    # ذخیره نتایج
-    os.makedirs("results", exist_ok=True)
-    results_file = f"results/backtest_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
-    pd.DataFrame(results['trades']).to_csv(results_file, index=False)
-    
-    # تولید گزارش
-    from analyzer import ResultAnalyzer
-    analyzer = ResultAnalyzer(results)
-    report = analyzer.generate_report()
-    
-    print("\nBacktest completed!")
-    print(f"{'='*50}")
-    print(f"Initial Balance: ${results['initial_balance']:.2f}")
-    print(f"Final Balance: ${results['final_balance']:.2f}")
-    print(f"Profit: {results['profit_pct']:.2f}%")
-    print(f"Total Trades: {len(results['trades'])}")
-    print(f"Win Rate: {report['performance']['win_rate']:.2f}%")
-    
-    # ذخیره گزارش خلاصه
-    with open(f"results/summary_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.txt", "w") as f:
-        f.write(f"Backtest Report ({start_date} to {end_date})\n")
-        f.write("="*50 + "\n")
-        f.write(f"Profit: {results['profit_pct']:.2f}%\n")
-        f.write(f"Trades: {len(results['trades'])}\n")
-        f.write(f"Win Rate: {report['performance']['win_rate']:.2f}%\n")
-        f.write("\nFilter Statistics:\n")
-        for filter_name, count in strategy.get_filter_stats().items():
-            f.write(f"- {filter_name}: {count} times\n")
-    
-    print("Results saved in 'results' directory")
+    def run_manual(self):
+        """حالت اجرای دستی"""
+        print("Starting manual check...")
+        if self.is_trading_active():
+            print("Market is active (03:00-20:30 UTC)")
+            result = self.run_single_check()
+            print(f"Manual check {'successful' if result else 'completed with no signal'}")
+        else:
+            print("Market is closed (20:30-03:00 UTC)")
+            print("You can still run checks manually during inactive hours")
+            if input("Continue anyway? (y/n): ").lower() == 'y':
+                self.run_single_check()
 
-if __name__ == "__main__":
-    import argparse
+    def generate_daily_report(self):
+        """تولید گزارش روزانه"""
+        reporter = DailyReporter(self.logger, self.strategy.get_filter_stats())
+        reporter.generate_report()
+        self.strategy.reset_stats()
+        self.logger.clear_log()
+
+    def run_backtest(self, start_date, end_date):
+        """اجرای بک‌تست تاریخی"""
+        print(f"\nRunning backtest from {start_date} to {end_date}")
+        
+        all_data = []
+        current_date = start_date
+        while current_date <= end_date:
+            print(f"Fetching data for {current_date.strftime('%Y-%m')}")
+            df = self.connector.fetch_data(limit=500)
+            all_data.append(df)
+            current_date += timedelta(days=30)
+        
+        full_df = pd.concat(all_data).drop_duplicates().sort_values('timestamp')
+        print(f"Total data points: {len(full_df)}")
+        
+        full_df = self.strategy.calculate(full_df)
+        
+        from backtester import Backtester
+        backtester = Backtester(self.strategy.get_filter_stats())
+        results = backtester.backtest(full_df)
+        
+        os.makedirs("results", exist_ok=True)
+        results_file = f"results/backtest_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv"
+        pd.DataFrame(results['trades']).to_csv(results_file, index=False)
+        
+        print("\nBacktest Results:")
+        print(f"Initial Balance: ${results['initial_balance']:.2f}")
+        print(f"Final Balance: ${results['final_balance']:.2f}")
+        print(f"Profit: {results['profit_pct']:.2f}%")
+        print(f"Total Trades: {len(results['trades'])}")
+
+def main():
+    parser = argparse.ArgumentParser(
+        description='Bitcoin Institutional Trading System',
+        formatter_class=argparse.RawTextHelpFormatter,
+        epilog="""Examples:
+  Live mode:    python main.py --mode live
+  Manual check: python main.py --mode manual
+  Backtest:     python main.py --mode backtest --start 2023-01-01 --end 2023-12-31""")
     
-    parser = argparse.ArgumentParser(description='Bitcoin Institutional Trading System')
-    parser.add_argument('--mode', choices=['live', 'backtest'], default='live', help='Operation mode')
+    parser.add_argument('--mode', choices=['live', 'manual', 'backtest'], default='manual',
+                      help='Operation mode (default: manual)')
     parser.add_argument('--start', help='Backtest start date (YYYY-MM-DD)')
     parser.add_argument('--end', help='Backtest end date (YYYY-MM-DD)')
     
     args = parser.parse_args()
     
+    system = TradingSystem()
+    
     if args.mode == 'backtest':
         if not args.start or not args.end:
-            print("Error: Please specify start and end dates for backtest")
-            print("Example: python main.py --mode backtest --start 2023-01-01 --end 2023-06-30")
+            print("Error: Please specify both start and end dates")
+            print("Example: python main.py --mode backtest --start 2023-01-01 --end 2023-12-31")
             exit(1)
         
         try:
             start_date = datetime.strptime(args.start, "%Y-%m-%d")
             end_date = datetime.strptime(args.end, "%Y-%m-%d")
+            system.run_backtest(start_date, end_date)
         except ValueError:
             print("Invalid date format. Please use YYYY-MM-DD")
-            exit(1)
-            
-        run_backtest(start_date, end_date)
+    elif args.mode == 'live':
+        system.run_continuous()
     else:
-        run_live()
+        system.run_manual()
+
+if __name__ == "__main__":
+    main()
