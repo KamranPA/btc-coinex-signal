@@ -1,45 +1,76 @@
-name: Live Bitcoin Trading
+import os
+import time
+import schedule
+from datetime import datetime, time as dt_time, timedelta
+from exchange_connector import ExchangeConnector
+from strategy_engine import InstitutionalStrategy
+from trade_logger import TradeLogger
+from telegram_bot import send_signal
+from config import SYMBOL, TIMEFRAME
 
-on:
-  schedule:
-    - cron: '*/15 3-20 * * *'
-    - cron: '0,15,30 20 * * *'
-  workflow_dispatch:
+class LiveTrading:
+    def __init__(self):
+        self.connector = ExchangeConnector()
+        self.strategy = InstitutionalStrategy()
+        self.logger = TradeLogger()
+        self.last_signal = None
 
-jobs:
-  trade:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-        
-    - name: Set up Python 3.9  # تغییر به نسخه 3.9
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-        
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential libssl-dev libffi-dev python3-dev
-        wget http://prdownloads.sourceforge.net/ta-lib/ta-lib-0.4.0-src.tar.gz
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib && ./configure --prefix=/usr && make && sudo make install
-        
-    - name: Install Python packages
-      run: |
-        python -m pip install --upgrade pip
-        pip install wheel
-        pip install -r requirements.txt
-        
-    - name: Prepare directories
-      run: |
-        mkdir -p src/logs
-        mkdir -p src/results
-        
-    - name: Run trading system
-      working-directory: ./src
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        python main.py --mode live
+    def is_market_open(self):
+        """بررسی آیا بازار باز است (03:00 تا 20:30 UTC)"""
+        now = datetime.utcnow()
+        market_open = dt_time(3, 0)
+        market_close = dt_time(20, 30)
+        return market_open <= now.time() <= market_close
+
+    def time_until_open(self):
+        """محاسبه زمان باقیمانده تا بازگشایی بازار"""
+        now = datetime.utcnow()
+        if now.time() > dt_time(20, 30):
+            # فردا ساعت 03:00
+            next_open = (now + timedelta(days=1)).replace(hour=3, minute=0, second=0)
+        else:
+            # امروز ساعت 03:00
+            next_open = now.replace(hour=3, minute=0, second=0)
+        return (next_open - now).total_seconds()
+
+    def check_market(self):
+        """بررسی بازار و شناسایی سیگنالها"""
+        try:
+            if not self.is_market_open():
+                print(f"⏳ بازار بسته است. بررسی بعدی در {self.time_until_open()/60:.1f} دقیقه")
+                return
+
+            print(f"\n🔍 بررسی بازار در {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
+            
+            # دریافت داده‌های بازار
+            df = self.connector.fetch_data(symbol=SYMBOL, interval=TIMEFRAME, limit=100)
+            
+            # محاسبه سیگنال
+            df = self.strategy.calculate(df)
+            latest = df.iloc[-1]
+            
+            if latest['signal'] == 1 and self.last_signal != latest['timestamp']:
+                signal_data = {
+                    'symbol': SYMBOL,
+                    'signal': 1,
+                    'entry': latest['close'],
+                    'sl': latest['stop_loss'],
+                    'tp': latest['take_profit'],
+                    'timestamp': latest['timestamp'].strftime("%Y-%m-%d %H:%M:%S")
+                }
+                
+                self.logger.log_signal(signal_data)
+                send_signal(signal_data)
+                self.last_signal = latest['timestamp']
+                print(f"🚀 سیگنال جدید شناسایی شد! قیمت ورود: {signal_data['entry']:.2f}")
+            else:
+                print("🔍 هیچ سیگنال جدیدی شناسایی نشد")
+                
+        except Exception as e:
+            print(f"❌ خطا در بررسی بازار: {str(e)}")
+
+    def start(self, interval=900):
+        """شروع سیستم معاملاتی"""
+        print("🚀 شروع سیستم معاملاتی زنده")
+        print(f"🔎 نماد: {SYMBOL} | تایم‌فریم: {TIMEFRAME}")
+        print
