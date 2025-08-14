@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class ExchangeConnector:
     def __init__(self):
-        self.exchange_priority = config.EXCHANGES
+        self.exchange_priority = config.EXCHANGES  # فقط kucoin و binance
         self.connected_exchange = None
         logger.info(f"🔄 اتصال به صرافی‌ها با اولویت: {self.exchange_priority}")
 
@@ -29,13 +29,6 @@ class ExchangeConnector:
                     if response.status_code == 200:
                         self.connected_exchange = "binance"
                         logger.info("✅ متصل به Binance")
-                        return
-
-                elif exchange == "bybit":
-                    response = requests.get("https://api.bybit.com/v2/public/time", timeout=10)
-                    if response.status_code == 200:
-                        self.connected_exchange = "bybit"
-                        logger.info("✅ متصل به Bybit")
                         return
 
             except Exception as e:
@@ -69,16 +62,7 @@ class ExchangeConnector:
                 ])
                 df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
 
-            elif self.connected_exchange == "bybit":
-                interval = "15" if config.TIMEFRAME == "15min" else "60"
-                url = f"https://api.bybit.com/public/linear/kline?symbol={symbol}&interval={interval}&limit={limit}"
-                response = requests.get(url, timeout=15)
-                data = response.json()['result']
-                df = pd.DataFrame(data, columns=[
-                    'timestamp', 'open', 'high', 'low', 'close', 'volume', 'turnover'
-                ])
-                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
-
+            # تبدیل ستون‌های عددی
             numeric_cols = ['open', 'high', 'low', 'close', 'volume']
             df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
             df = df.dropna().sort_values('timestamp').reset_index(drop=True)
