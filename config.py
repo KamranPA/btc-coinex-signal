@@ -1,13 +1,12 @@
+# config.py
 import os
 
-‎# دریافت تنظیمات از محیط (در GitHub Actions از Secrets می‌آید)
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 
-‎# سایر تنظیمات ثابت
 SYMBOL = "BTC-USDT"
 TIMEFRAME = "15min"
-EXCHANGES = ["kucoin", "binance", "bybit"]
+EXCHANGES = ["kucoin", "binance"]  # ✅ Bybit حذف شد
 
 STRATEGY_PARAMS = {
     "short_ema": 20,
