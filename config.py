@@ -2,15 +2,15 @@
 import os
 
 # تنظیمات عمومی
-SYMBOL = "BTC/USDT"
+SYMBOL = "BTC-USDT"          # فرمت صحیح برای KuCoin
 TIMEFRAME = "15m"
 EXCHANGE = "kucoin"
 
-# خواندن توکن و شناسه از محیط (از GitHub Secrets)
+# خواندن از محیط (GitHub Secrets)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# هشدار در صورت عدم وجود توکن یا چت آی‌دی
+# بررسی و هشدار
 if not TELEGRAM_TOKEN:
     print("⚠️  هشدار: TELEGRAM_TOKEN در تنظیمات یافت نشد.")
 if not CHAT_ID:
