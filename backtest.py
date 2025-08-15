@@ -12,9 +12,11 @@ import config
 
 def backtest(symbol, start_date, end_date, timeframe='15m'):
     try:
-        df = fetch_kucoin_data(symbol, timeframe, limit=100, start_date=start_date, end_date=end_date)
-        if len(df) < 50:
-            logger.warning("داده کافی موجود نیست")
+        logger.info(f"🔍 شروع بک‌تست برای {symbol} از {start_date} تا {end_date}")
+        df = fetch_kucoin_data(symbol, timeframe, limit=1000, start_date=start_date, end_date=end_date)
+        
+        if df.empty or len(df) < 50:
+            logger.warning("❌ داده کافی موجود نیست یا خالی است.")
             return
 
         # محاسبه اندیکاتورها
@@ -63,9 +65,14 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
                     'macd': last['MACD_LINE']
                 })
 
-        # ارسال نتایج به تلگرام (فقط اگر توکن و چت آی‌دی وجود داشته باشد)
-        if signals and config.TELEGRAM_TOKEN and config.CHAT_ID:
-            msg = f"""
+        logger.info(f"🔍 تعداد سیگنال‌های پیدا شده: {len(signals)}")
+
+        # ارسال نتایج به تلگرام
+        if signals:
+            logger.info(f"📌 {len(signals)} سیگنال یافت شد. آماده ارسال به تلگرام...")
+            if config.TELEGRAM_TOKEN and config.CHAT_ID:
+                logger.info(f"🔧 ارسال با توکن: {'✅' if config.TELEGRAM_TOKEN else '❌'} | چت آی‌دی: {'✅' if config.CHAT_ID else '❌'}")
+                msg = f"""
 📊 <b>نتیجه بک‌تست</b>
 📌 نماد: {symbol}
 📅 بازه زمانی: {start_date} تا {end_date}
@@ -74,22 +81,26 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
 
 📝 سیگنال‌ها:
 """
-            for sig in signals[:5]:
-                msg += f"""
+                for sig in signals[:5]:
+                    msg += f"""
 • {sig['type']} | زمان: {sig['time']} | قیمت ورود: {sig['entry']} | SL: {sig['sl']} | TP: {sig['tp']}
 """
-            send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-            logger.info(f"✅ نتیجه بک‌تست به تلگرام ارسال شد.")
+                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
+                logger.info("✅ نتیجه بک‌تست به تلگرام ارسال شد.")
+            else:
+                logger.warning("⚠️  ارسال به تلگرام غیرفعال — توکن یا Chat ID وجود ندارد.")
+        else:
+            logger.info("ℹ️  هیچ سیگنالی در بازه زمانی مشخص شده یافت نشد.")
+            logger.info("💡 راهکار: بازه زمانی را گسترش دهید یا نماد دیگری را تست کنید.")
 
-        # ذخیره نتایج در results/
+        # ذخیره نتایج
         base_dir = "results"
-        symbol_clean = symbol.replace("/", "_")  # تبدیل BTC/USDT به BTC_USDT
+        symbol_clean = symbol.replace("/", "_").replace("-", "_")
         full_path = os.path.join(base_dir, symbol_clean)
         os.makedirs(full_path, exist_ok=True)
 
         filename = f"{start_date}_to_{end_date}.csv"
         filepath = os.path.join(full_path, filename)
-
         df.to_csv(filepath, index=True)
         logger.info(f"✅ نتایج بک‌تست ذخیره شد: {filepath}")
 
