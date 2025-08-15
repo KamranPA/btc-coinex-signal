@@ -1,11 +1,11 @@
-# main.py (اصلاح شده برای GitHub Actions)
+# main.py
 import time
 import schedule
 import pandas as pd
 from datetime import datetime, timezone, time as dt_time
 import logging
 
-from data_handler import fetch_binance_data
+from data_handler import fetch_kucoin_data
 from indicators import calculate_rsi, calculate_macd, calculate_ema
 from risk_management import get_entry_sl_tp
 from telegram_bot import send_telegram_message
@@ -60,8 +60,9 @@ def check_signal():
 🔵 MACD: {last['MACD_LINE']:.4f} | سیگنال: {last['MACD_SIGNAL']:.4f}
 📈 حجم: {last['volume']:.0f} (میانگین: {last['VOL_MA20']:.0f})
             """
-            send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-            logger.info(f"BUY سیگنال ارسال شد: {entry} | SL: {sl} | TP: {tp}")
+            if config.TELEGRAM_TOKEN and config.CHAT_ID:
+                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
+                logger.info(f"BUY سیگنال ارسال شد: {entry} | SL: {sl} | TP: {tp}")
 
         # بررسی سیگنال فروش
         elif (last['close'] < last['EMA50'] and
@@ -81,8 +82,9 @@ def check_signal():
 🔴 MACD: {last['MACD_LINE']:.4f} | سیگنال: {last['MACD_SIGNAL']:.4f}
 📉 حجم: {last['volume']:.0f} (میانگین: {last['VOL_MA20']:.0f})
             """
-            send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-            logger.info(f"SELL سیگنال ارسال شد: {entry} | SL: {sl} | TP: {tp}")
+            if config.TELEGRAM_TOKEN and config.CHAT_ID:
+                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
+                logger.info(f"SELL سیگنال ارسال شد: {entry} | SL: {sl} | TP: {tp}")
 
     except Exception as e:
         logger.error(f"❌ خطای سیستم: {e}")
@@ -90,5 +92,5 @@ def check_signal():
 # اجرای یکباره (برای GitHub Actions)
 if __name__ == "__main__":
     logger.info("🚀 سیستم سیگنال‌دهی راه‌اندازی شد (اجرای یکباره)")
-    check_signal()  # فقط یکبار اجرا می‌شود
+    check_signal()
     logger.info("✅ سیستم به پایان رسید")
