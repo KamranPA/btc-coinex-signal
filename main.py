@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, timezone, time as dt_time
 import logging
 
-from data_handler import fetch_binance_data
+from data_handler import fetch_binance_data  # ← این فایل باید وجود داشته باشد
 from indicators import calculate_rsi, calculate_macd, calculate_ema
 from risk_management import get_entry_sl_tp
 from telegram_bot import send_telegram_message
@@ -14,7 +14,6 @@ import config
 
 def is_market_active():
     now_utc = datetime.now(timezone.utc).time()
-    # غیرفعال از 8:30 تا 3:00 UTC
     start_block = dt_time(8, 30)
     end_block = dt_time(3, 0)
     if start_block <= now_utc or now_utc <= end_block:
