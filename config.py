@@ -6,7 +6,7 @@ TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
 
 SYMBOL = "BTC-USDT"
 TIMEFRAME = "15min"
-EXCHANGES = ["kucoin", "binance"]  # ✅ Bybit حذف شد
+EXCHANGES = ["kucoin", "binance"]
 
 STRATEGY_PARAMS = {
     "short_ema": 20,
