@@ -4,7 +4,7 @@ import pandas as pd
 import os
 from datetime import datetime
 from data_handler import fetch_kucoin_data
-from indicators import calculate_rsi, calculate_macd, calculate_ema
+from indicators import calculate_rsi, calculate_ema
 from risk_management import get_entry_sl_tp
 from telegram_bot import send_telegram_message
 from logger_config import logger
@@ -12,13 +12,12 @@ import config
 
 def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='1h'):
     try:
-        # داده اصلی (تایم‌فریم پایین)
-        df = fetch_kucoin_data(symbol, timeframe, limit=500, start_date=start_date, end_date=end_date)
+        df = fetch_kucoin_data(symbol, timeframe, limit=1000, start_date=start_date, end_date=end_date)
         if df.empty or len(df) < 50:
             logger.warning("داده کافی موجود نیست")
             return
 
-        # داده روند (تایم‌فریم بالاتر)
+        # داده تایم‌فریم بالاتر (فیلتر روند)
         df_htf = fetch_kucoin_data(symbol, higher_timeframe, limit=100)
         if df_htf.empty:
             logger.warning("داده تایم‌فریم بالاتر موجود نیست")
@@ -35,68 +34,138 @@ def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='1h
         uptrend = last_close_htf > ema50_htf
         downtrend = last_close_htf < ema50_htf
 
+        # پارامترهای مدیریت ریسک
+        RISK_REWARD_RATIO = 2.0
+        MAX_HOLD_BARS = 20  # اگر TP/SL فعال نشد، بعد از 20 کندل خارج شو
+
+        # ذخیره سیگنال‌ها
         signals = []
-        for i in range(1, len(df)):
+        wins = 0
+        losses = 0
+
+        for i in range(50, len(df) - MAX_HOLD_BARS):
             last = df.iloc[i]
             prev = df.iloc[i-1]
 
-            volume_condition = last['volume'] > 1.1 * last['VOL_MA20']  # فقط +10%
+            volume_condition = last['volume'] > 1.1 * last['VOL_MA20']
             rsi_buy_condition = prev['RSI'] <= 35 and last['RSI'] > 35
             rsi_sell_condition = prev['RSI'] >= 65 and last['RSI'] < 65
 
             # سیگنال خرید
-            if (uptrend and
-                rsi_buy_condition and
-                volume_condition):
-                entry, sl, tp = get_entry_sl_tp("BUY", df.iloc[:i+1])
+            if not any(s['exit_bar'] is None for s in signals if s['type'] == 'BUY') and \
+               uptrend and rsi_buy_condition and volume_condition:
+
+                entry, sl, tp = get_entry_sl_tp("BUY", df.iloc[:i+1], risk_reward_ratio=RISK_REWARD_RATIO)
                 signals.append({
                     'type': 'BUY',
-                    'time': last.name,
-                    'entry': entry,
+                    'entry_bar': i,
+                    'entry_price': entry,
                     'sl': sl,
                     'tp': tp,
-                    'rsi': last['RSI'],
-                    'score': 3  # قوی
+                    'exit_bar': None,
+                    'exit_price': None,
+                    'status': 'open'
                 })
 
             # سیگنال فروش
-            elif (downtrend and
-                  rsi_sell_condition and
-                  volume_condition):
-                entry, sl, tp = get_entry_sl_tp("SELL", df.iloc[:i+1])
+            elif not any(s['exit_bar'] is None for s in signals if s['type'] == 'SELL') and \
+                 downtrend and rsi_sell_condition and volume_condition:
+
+                entry, sl, tp = get_entry_sl_tp("SELL", df.iloc[:i+1], risk_reward_ratio=RISK_REWARD_RATIO)
                 signals.append({
                     'type': 'SELL',
-                    'time': last.name,
-                    'entry': entry,
+                    'entry_bar': i,
+                    'entry_price': entry,
                     'sl': sl,
                     'tp': tp,
-                    'rsi': last['RSI'],
-                    'score': 3
+                    'exit_bar': None,
+                    'exit_price': None,
+                    'status': 'open'
                 })
 
-        logger.info(f"✅ {len(signals)} سیگنال قوی یافت شد.")
+            # بررسی خروج (حد ضرر یا حد سود)
+            for signal in signals:
+                if signal['status'] == 'open':
+                    future_df = df.iloc[i:i+MAX_HOLD_BARS]
+                    for j, row in enumerate(future_df.itertuples()):
+                        if signal['type'] == 'BUY':
+                            if row.low <= signal['sl']:
+                                signal['exit_bar'] = i + j
+                                signal['exit_price'] = signal['sl']
+                                signal['status'] = 'loss'
+                                losses += 1
+                                break
+                            elif row.high >= signal['tp']:
+                                signal['exit_bar'] = i + j
+                                signal['exit_price'] = signal['tp']
+                                signal['status'] = 'win'
+                                wins += 1
+                                break
+                        elif signal['type'] == 'SELL':
+                            if row.high >= signal['sl']:
+                                signal['exit_bar'] = i + j
+                                signal['exit_price'] = signal['sl']
+                                signal['status'] = 'loss'
+                                losses += 1
+                                break
+                            elif row.low <= signal['tp']:
+                                signal['exit_bar'] = i + j
+                                signal['exit_price'] = signal['tp']
+                                signal['status'] = 'win'
+                                wins += 1
+                                break
+                    else:
+                        # خروج زمانی (اگر TP/SL فعال نشد)
+                        last_row = df.iloc[i + MAX_HOLD_BARS - 1]
+                        signal['exit_bar'] = i + MAX_HOLD_BARS - 1
+                        signal['exit_price'] = last_row['close']
+                        signal['status'] = 'timeout'
+                        if signal['type'] == 'BUY':
+                            if last_row['close'] > signal['entry_price']:
+                                wins += 1
+                            else:
+                                losses += 1
+                        else:
+                            if last_row['close'] < signal['entry_price']:
+                                wins += 1
+                            else:
+                                losses += 1
+
+        # محاسبه وین ریت
+        total_trades = wins + losses
+        win_rate = (wins / total_trades * 100) if total_trades > 0 else 0
+
+        logger.info(f"📊 نتایج بک‌تست برای {symbol}")
+        logger.info(f"📈 تعداد کل سیگنال: {total_trades}")
+        logger.info(f"✅ موفق: {wins} | ❌ ناموفق: {losses}")
+        logger.info(f"🎯 وین ریت: {win_rate:.1f}%")
+        logger.info(f"🔍 نسبت R:R: {RISK_REWARD_RATIO}:1")
 
         # ارسال به تلگرام
-        if signals and config.TELEGRAM_TOKEN and config.CHAT_ID:
+        if config.TELEGRAM_TOKEN and config.CHAT_ID:
             msg = f"""
-🎯 <b>سیگنال‌های بهینه‌شده</b>
+📊 <b>نتیجه بک‌تست</b>
 📌 نماد: {symbol}
 📅 بازه: {start_date} تا {end_date}
 ⏰ تایم‌فریم: {timeframe}
-📈 تعداد: {len(signals)}
 
-📝 سیگنال‌ها (R:R > 1.5):
-"""
-            for sig in signals[:5]:
-                msg += f"""
-• {sig['type']} | {sig['time']} | ورود: {sig['entry']} | SL: {sig['sl']} | TP: {sig['tp']}
+📈 تعداد معاملات: {total_trades}
+✅ موفق: {wins}
+❌ ناموفق: {losses}
+🎯 وین ریت: {win_rate:.1f}%
+🔁 نسبت R:R: {RISK_REWARD_RATIO}:1
+
+💡 سیگنال‌های باکیفیت — اگر تعداد کم است، می‌توان فیلترها را کمی آسان‌تر کرد.
 """
             send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-            logger.info("✅ سیگنال‌ها به تلگرام ارسال شد.")
+            logger.info("✅ نتایج به تلگرام ارسال شد.")
 
-        # ذخیره
+        # ذخیره نتایج
         os.makedirs("results", exist_ok=True)
-        df.to_csv(f"results/{symbol}_{start_date}_to_{end_date}.csv")
+        results_df = pd.DataFrame([
+            {**s, 'symbol': symbol, 'timeframe': timeframe} for s in signals
+        ])
+        results_df.to_csv(f"results/backtest_{symbol}_{start_date}_to_{end_date}.csv", index=False)
         logger.info("✅ نتایج ذخیره شد.")
 
     except Exception as e:
