@@ -1,10 +1,9 @@
-# .github/workflows/main.yml
 name: 🚀 اجرای لایو سیگنال‌دهی (هر 15 دقیقه)
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # هر 15 دقیقه
-  workflow_dispatch:        # امکان اجرا دستی
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
 
 jobs:
   run-live-signal:
@@ -33,7 +32,7 @@ jobs:
         run: python main.py
 
       - name: 📤 آپلود لاگ
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # ✅ اصلاح شد
         if: always()
         with:
           name: logs
