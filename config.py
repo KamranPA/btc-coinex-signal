@@ -1,13 +1,16 @@
 # config.py
 import os
 
-SYMBOL = "BTC/USDT"          # قابل پشتیبانی توسط KuCoin
+# تنظیمات عمومی
+SYMBOL = "BTC/USDT"
 TIMEFRAME = "15m"
-EXCHANGE = "kucoin"          # تغییر از binance به kucoin
+EXCHANGE = "kucoin"
 
+# خواندن توکن و شناسه از محیط (از GitHub Secrets)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+# هشدار در صورت عدم وجود توکن یا چت آی‌دی
 if not TELEGRAM_TOKEN:
     print("⚠️  هشدار: TELEGRAM_TOKEN در تنظیمات یافت نشد.")
 if not CHAT_ID:
