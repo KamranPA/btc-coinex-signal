@@ -1,120 +1,40 @@
 name: 🚀 اجرای سیستم معاملاتی زنده
 
 on:
-  # اجرای خودکار هر 15 دقیقه از ساعت 03:00 تا 20:30 UTC (06:30 تا 23:30 به وقت ایران)
   schedule:
-    - cron: '*/15 3-20 * * *'
-
-  # امکان اجرای دستی از طریق GitHub Actions
+    - cron: '*/15 3-20 * * *'  # هر 15 دقیقه از 03:00 تا 20:30 UTC
   workflow_dispatch:
-    inputs:
-      force_run:
-        description: 'اجرا خارج از ساعات بازار؟'
-        type: boolean
-        default: false
-        required: false
 
 jobs:
   run-trading:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
-    # 1️⃣ دریافت کد از ریپازیتوری
-    - name: 🔁 دریافت کد (Checkout)
+    - name: 🔁 دریافت کد
       uses: actions/checkout@v4
 
-    # 2️⃣ تنظیم پایتون 3.9
     - name: 🐍 تنظیم پایتون 3.9
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    # 3️⃣ نصب وابستگی‌های سیستمی و کامپایل TA-Lib
-    - name: ⚙️ نصب وابستگی‌های سیستمی
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y \
-          build-essential \
-          libssl-dev \
-          libffi-dev \
-          python3-dev \
-          wget \
-          libtool \
-          automake \
-          g++ \
-          make
-
-    # 4️⃣ دانلود و کامپایل TA-Lib از سورس
-    - name: 🔽 دانلود و کامپایل TA-Lib
-      run: |
-        echo "⬇️ دانلود TA-Lib..."
-        wget https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib
-
-        echo "🔧 پیکربندی..."
-        ./configure --prefix=/usr
-
-        echo "🔨 کامپایل..."
-        make -j$(nproc)
-
-        echo "✅ نصب در سیستم..."
-        sudo make install
-
-        echo "🧹 پاک‌سازی..."
-        cd ..
-        rm -rf ta-lib-0.4.0-src.tar.gz ta-lib
-
-        # بارگیری مجدد کتابخانه‌های سیستم
-        sudo ldconfig
-
-    # 5️⃣ تنظیم مسیر کتابخانه‌ها برای پایتون
-    - name: 📁 تنظیم LD_LIBRARY_PATH
-      run: |
-        echo "export LD_LIBRARY_PATH=/usr/lib:/usr/local/lib" >> $GITHUB_ENV
-
-    # 6️⃣ بررسی فیزیکی نصب کتابخانه
-    - name: 🔍 بررسی کتابخانه TA-Lib در سیستم
-      run: |
-        echo "🔍 جستجوی کتابخانه‌های TA-Lib..."
-        ldconfig -p | grep -i ta_lib || echo "⚠️ کتابخانه پیدا نشد."
-
-    # 7️⃣ نصب کتابخانه‌های پایتون
-    - name: 📦 نصب کتابخانه‌های پایتون
+    - name: 📦 نصب کتابخانه‌ها
       run: |
         python -m pip install --upgrade pip
-        pip install wheel
         pip install -r requirements.txt
 
-    # 8️⃣ تست وارد کردن talib قبل از اجرا
-    - name: 🧪 تست وارد کردن ماژول talib
-      run: |
-        python -c "
-        try:
-            import talib
-            print(f'🎉 موفق! TA-Lib وارد شد. نسخه: {talib.__version__}')
-        except ImportError as e:
-            print(f'❌ خطا در وارد کردن talib: {e}')
-            exit(1)
-        "
-
-    # 9️⃣ ایجاد پوشه‌های ضروری
-    - name: 📁 ایجاد پوشه‌های لاگ و نتایج
+    - name: 📁 ایجاد پوشه‌ها
       run: |
         mkdir -p logs results src/logs src/results
-        touch logs/trading.log
-        echo "✅ پوشه‌ها ایجاد شدند."
 
-    # 🔟 اجرای سیستم معاملاتی
-    - name: ▶️ اجرای سیستم معاملاتی (حالت زنده)
+    - name: ▶️ اجرای سیستم
       run: |
         cd src && python main.py --mode live
 
-    # 1️⃣1️⃣ آپلود لاگ‌ها برای دیباگ (در هر صورت)
     - name: 📎 آپلود لاگ‌ها
       if: always()
       uses: actions/upload-artifact@v4
