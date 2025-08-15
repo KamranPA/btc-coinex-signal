@@ -26,7 +26,7 @@ def check_signal():
         return
 
     try:
-        df = fetch_binance_data(config.SYMBOL, config.TIMEFRAME, limit=100)
+        df = fetch_kucoin_data(config.SYMBOL, config.TIMEFRAME, limit=100)
         if len(df) < 50:
             logger.warning("داده کافی موجود نیست")
             return
