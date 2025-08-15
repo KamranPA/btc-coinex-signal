@@ -1,7 +1,10 @@
-{
-  "SYMBOL": "BTC/USDT",
-  "TIMEFRAME": "15m",
-  "TELEGRAM_TOKEN": "YOUR_BOT_TOKEN",
-  "CHAT_ID": "YOUR_CHAT_ID",
-  "EXCHANGE": "binance"
-}
+# config.py
+import os
+
+SYMBOL = "BTC/USDT"
+TIMEFRAME = "15m"
+EXCHANGE = "binance"
+
+# خواندن از متغیرهای محیطی (که از Secrets می‌آیند)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
