@@ -1,11 +1,11 @@
-# main.py
+# main.py (اصلاح شده برای GitHub Actions)
 import time
 import schedule
 import pandas as pd
 from datetime import datetime, timezone, time as dt_time
 import logging
 
-from data_handler import fetch_binance_data  # ← این فایل باید وجود داشته باشد
+from data_handler import fetch_binance_data
 from indicators import calculate_rsi, calculate_macd, calculate_ema
 from risk_management import get_entry_sl_tp
 from telegram_bot import send_telegram_message
@@ -87,11 +87,8 @@ def check_signal():
     except Exception as e:
         logger.error(f"❌ خطای سیستم: {e}")
 
-# برنامه‌ریزی هر 15 دقیقه
-schedule.every(15).minutes.do(check_signal)
-
+# اجرای یکباره (برای GitHub Actions)
 if __name__ == "__main__":
-    logger.info("🚀 سیستم سیگنال‌دهی راه‌اندازی شد (هر 15 دقیقه)")
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
+    logger.info("🚀 سیستم سیگنال‌دهی راه‌اندازی شد (اجرای یکباره)")
+    check_signal()  # فقط یکبار اجرا می‌شود
+    logger.info("✅ سیستم به پایان رسید")
