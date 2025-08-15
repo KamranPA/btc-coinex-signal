@@ -64,7 +64,7 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
                 })
 
         # ارسال نتایج به تلگرام
-        if signals:
+        if signals and config.TELEGRAM_TOKEN and config.CHAT_ID:
             msg = f"""
 📊 <b>نتیجه بک‌تست</b>
 📌 نماد: {symbol}
@@ -85,8 +85,10 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
         results_dir = "results"
         os.makedirs(results_dir, exist_ok=True)
         filename = f"{symbol}_{start_date}_to_{end_date}.csv"
-        df.to_csv(os.path.join(results_dir, filename))
-        logger.info(f"✅ نتایج بک‌تست ذخیره شد: {filename}")
+        filepath = os.path.join(results_dir, filename)
+
+        df.to_csv(filepath, index=True)
+        logger.info(f"✅ نتایج بک‌تست ذخیره شد: {filepath}")
 
     except Exception as e:
         logger.error(f"❌ خطای بک‌تست: {e}")
