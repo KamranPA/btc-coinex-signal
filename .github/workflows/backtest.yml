@@ -1,28 +1,16 @@
-name: 📊 بک‌تست استراتژی (قابل تنظیم)
+name: 🚀 اجرای لایو سیگنال‌دهی (هر 15 دقیقه)
 
 on:
+  schedule:
+    - cron: '*/15 * * * *'
   workflow_dispatch:
-    inputs:
-      symbol:
-        description: 'نماد برای بک‌تست (مثال: BTC/USDT)'
-        required: true
-        default: 'BTC/USDT'
-      start_date:
-        description: 'تاریخ شروع (فرمت: YYYY-MM-DD)'
-        required: true
-        default: '2024-01-01'
-      end_date:
-        description: 'تاریخ پایان (فرمت: YYYY-MM-DD)'
-        required: true
-        default: '2024-06-01'
-      timeframe:
-        description: 'تایم‌فریم (مثال: 15m, 1h)'
-        required: true
-        default: '15m'
 
 jobs:
-  run-backtest:
+  run-live-signal:
     runs-on: ubuntu-latest
+    env:
+      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+      CHAT_ID: ${{ secrets.CHAT_ID }}
 
     steps:
       - name: 🔽 کلون کردن ریپوزیتوری
@@ -37,20 +25,15 @@ jobs:
         run: |
           pip install -r requirements.txt
 
-      - name: 📁 ایجاد پوشه results
-        run: mkdir -p results
+      - name: 📁 ایجاد پوشه logs
+        run: mkdir -p logs
 
-      - name: ▶️ اجرای بک‌تست با ورودی‌ها
-        run: |
-          python backtest.py \
-            --symbol "${{ github.event.inputs.symbol }}" \
-            --start "${{ github.event.inputs.start_date }}" \
-            --end "${{ github.event.inputs.end_date }}" \
-            --timeframe "${{ github.event.inputs.timeframe }}"
+      - name: ▶️ اجرای سیستم لایو
+        run: python main.py
 
-      - name: 📤 آپلود نتایج بک‌تست
+      - name: 📤 آپلود لاگ
         uses: actions/upload-artifact@v4  # ✅ اصلاح شد
         if: always()
         with:
-          name: backtest-results
-          path: results/
+          name: logs
+          path: logs/
