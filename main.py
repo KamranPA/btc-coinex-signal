@@ -1,7 +1,6 @@
 # main.py
 import time
 import schedule
-import pandas as pd
 from datetime import datetime, timezone, time as dt_time
 import logging
 
@@ -27,11 +26,10 @@ def check_signal():
 
     try:
         df = fetch_kucoin_data(config.SYMBOL, config.TIMEFRAME, limit=100)
-        if len(df) < 50:
+        if df.empty or len(df) < 50:
             logger.warning("داده کافی موجود نیست")
             return
 
-        # محاسبه اندیکاتورها
         df['RSI'] = calculate_rsi(df['close'].values)
         df['MACD_LINE'], df['MACD_SIGNAL'] = calculate_macd(df['close'].values)
         df['EMA50'] = calculate_ema(df['close'].values, 50)
@@ -39,10 +37,9 @@ def check_signal():
 
         last = df.iloc[-1]
         prev = df.iloc[-2]
-
         volume_condition = last['volume'] > 1.2 * last['VOL_MA20']
 
-        # بررسی سیگنال خرید
+        # سیگنال خرید
         if (last['close'] > last['EMA50'] and
             last['MACD_LINE'] > last['MACD_SIGNAL'] and
             prev['RSI'] <= 30 and last['RSI'] > 30 and
@@ -64,7 +61,7 @@ def check_signal():
                 send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
                 logger.info(f"BUY سیگنال ارسال شد: {entry} | SL: {sl} | TP: {tp}")
 
-        # بررسی سیگنال فروش
+        # سیگنال فروش
         elif (last['close'] < last['EMA50'] and
               last['MACD_LINE'] < last['MACD_SIGNAL'] and
               prev['RSI'] >= 70 and last['RSI'] < 70 and
@@ -89,7 +86,6 @@ def check_signal():
     except Exception as e:
         logger.error(f"❌ خطای سیستم: {e}")
 
-# اجرای یکباره (برای GitHub Actions)
 if __name__ == "__main__":
     logger.info("🚀 سیستم سیگنال‌دهی راه‌اندازی شد (اجرای یکباره)")
     check_signal()
