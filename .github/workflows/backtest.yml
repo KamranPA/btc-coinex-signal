@@ -1,13 +1,12 @@
-# .github/workflows/backtest.yml
 name: 📊 بک‌تست استراتژی (قابل تنظیم)
 
 on:
   workflow_dispatch:
     inputs:
       symbol:
-        description: 'نماد برای بک‌تست (مثال: BTC/USDT)'
+        description: 'نماد برای بک‌تست (مثال: BTC-USDT)'
         required: true
-        default: 'BTC/USDT'
+        default: 'BTC-USDT'
       start_date:
         description: 'تاریخ شروع (فرمت: YYYY-MM-DD)'
         required: true
@@ -15,7 +14,7 @@ on:
       end_date:
         description: 'تاریخ پایان (فرمت: YYYY-MM-DD)'
         required: true
-        default: '2024-06-01'
+        default: '2024-12-31'
       timeframe:
         description: 'تایم‌فریم (مثال: 15m, 1h)'
         required: true
