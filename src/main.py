@@ -19,7 +19,7 @@ logging.basicConfig(
     format='%(asctime)s | %(levelname)s | %(message)s',
     handlers=[
         logging.FileHandler("logs/trading.log", encoding='utf-8'),
-        logging.StreamHandler()  # نمایش در کنسول
+        logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
@@ -30,7 +30,6 @@ class TradingSystem:
         self.strategy = InstitutionalStrategy()
         self.logger = TradeLogger()
         self.last_run = None
-        logger.info("✅ سیستم معاملاتی راه‌اندازی شد")
 
     def is_trading_active(self):
         now_utc = datetime.utcnow()
@@ -112,9 +111,12 @@ class TradingSystem:
 
     def run_backtest(self, start_date, end_date):
         logger.info(f"📊 بک‌تست از {start_date.date()} تا {end_date.date()}")
+
         from backtester import Backtester
         backtester = Backtester(initial_balance=10000, commission=0.001)
 
+        # شبیه‌سازی داده (در عمل از API بگیرید)
+        logger.info("🔄 دریافت داده برای بک‌تست...")
         df = self.connector.fetch_data(limit=1000)
         df = self.strategy.calculate(df)
 
@@ -125,14 +127,17 @@ class TradingSystem:
             max_holding_period=24
         )
 
-        backtester.generate_report("results/backtest")
+        # تولید گزارش
+        output_dir = f"results/backtest_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}"
+        backtester.generate_report(output_dir)
 
         logger.info("\n📈 نتایج بک‌تست:")
-        logger.info(f"موجودی اولیه: ${results['final_balance']:.2f}")
-        logger.info(f"موجودی نهایی: ${results['final_balance']:.2f}")
+        logger.info(f"موجودی اولیه: ${self.initial_balance:.2f}")
+        logger.info(f"موجودی نهایی: ${results['final_balance']:,.2f}")
         logger.info(f"بازده کلی: {results['return_pct']:.2f}%")
         logger.info(f"نرخ برد: {results['win_rate']:.2f}%")
         logger.info(f"فاکتور سود: {results['profit_factor']:.2f}")
+        logger.info(f"حداکثر افت سرمایه: {results['max_drawdown']:.2f}%")
 
 def main():
     parser = argparse.ArgumentParser(description='Bitcoin Institutional Trading System')
