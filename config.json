@@ -1,0 +1,7 @@
+{
+  "SYMBOL": "BTC/USDT",
+  "TIMEFRAME": "15m",
+  "TELEGRAM_TOKEN": "YOUR_BOT_TOKEN",
+  "CHAT_ID": "YOUR_CHAT_ID",
+  "EXCHANGE": "binance"
+}
