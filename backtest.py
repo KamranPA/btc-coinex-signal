@@ -63,7 +63,7 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
                     'macd': last['MACD_LINE']
                 })
 
-        # ارسال نتایج به تلگرام
+        # ارسال نتایج به تلگرام (فقط اگر توکن و چت آی‌دی وجود داشته باشد)
         if signals and config.TELEGRAM_TOKEN and config.CHAT_ID:
             msg = f"""
 📊 <b>نتیجه بک‌تست</b>
@@ -83,10 +83,8 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
 
         # ذخیره نتایج در results/
         base_dir = "results"
-        symbol_dir = symbol.replace("/", "_")  # BTC/USDT → BTC_USDT
-        full_path = os.path.join(base_dir, symbol_dir)
-
-        # ایجاد پوشه‌های زیرمجموعه
+        symbol_clean = symbol.replace("/", "_")  # تبدیل BTC/USDT به BTC_USDT
+        full_path = os.path.join(base_dir, symbol_clean)
         os.makedirs(full_path, exist_ok=True)
 
         filename = f"{start_date}_to_{end_date}.csv"
