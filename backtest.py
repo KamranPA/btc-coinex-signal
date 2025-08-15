@@ -79,7 +79,7 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
 • {sig['type']} | زمان: {sig['time']} | قیمت ورود: {sig['entry']} | SL: {sig['sl']} | TP: {sig['tp']}
 """
             send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-            logger.info(f"✅ نتیجه بک‌تست به تلگرام ارسال شد.")
+            logger.info(f"✅ نتایج بک‌تست به تلگرام ارسال شد.")
 
         # ذخیره نتایج در results/
         results_dir = "results"
