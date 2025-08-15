@@ -14,13 +14,17 @@ def fetch_binance_data(symbol, timeframe, limit=100, start_date=None, end_date=N
     def to_timestamp(date_str):
         return int(datetime.strptime(date_str, "%Y-%m-%d").timestamp() * 1000)
 
+    # تنظیم پارامترها
+    params = {
+        'limit': limit,
+        'since': to_timestamp(start_date) if start_date else None
+    }
+
     # دریافت داده‌ها
     ohlcv = exchange.fetch_ohlcv(
         symbol=symbol,
         timeframe=timeframe,
-        limit=limit,
-        since=to_timestamp(start_date) if start_date else None,
-        until=to_timestamp(end_date) if end_date else None
+        **params
     )
 
     df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
