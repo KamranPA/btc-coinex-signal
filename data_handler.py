@@ -3,13 +3,13 @@ import ccxt
 import pandas as pd
 from datetime import datetime
 
-def fetch_binance_data(symbol, timeframe, limit=100, start_date=None, end_date=None):
+def fetch_kucoin_data(symbol, timeframe, limit=100, start_date=None, end_date=None):
     # تغییر: استفاده از kucoin به جای binance
     exchange = ccxt.kucoin({
         'options': {
             'adjustForTimezone': False
         },
-        'enableRateLimit': True,  # مهم: رعایت محدودیت درخواست
+        'enableRateLimit': True,
     })
 
     # تبدیل تاریخ به میلی‌ثانیه
