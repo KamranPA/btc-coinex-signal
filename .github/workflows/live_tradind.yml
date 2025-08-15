@@ -1,40 +1,57 @@
 name: 🚀 اجرای سیستم معاملاتی زنده
 
 on:
+  # اجرای خودکار هر 15 دقیقه از ساعت 03:00 تا 20:30 UTC (06:30 تا 23:30 به وقت ایران)
   schedule:
-    - cron: '*/15 3-20 * * *'  # هر 15 دقیقه از 03:00 تا 20:30 UTC
+    - cron: '*/15 3-20 * * *'
+
+  # امکان اجرای دستی از طریق GitHub Actions
   workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'اجرا خارج از ساعات بازار؟'
+        type: boolean
+        default: false
+        required: false
 
 jobs:
   run-trading:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
     steps:
-    - name: 🔁 دریافت کد
+    # 1️⃣ دریافت کد از ریپازیتوری
+    - name: 🔁 دریافت کد (Checkout)
       uses: actions/checkout@v4
 
+    # 2️⃣ تنظیم پایتون 3.9
     - name: 🐍 تنظیم پایتون 3.9
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    - name: 📦 نصب کتابخانه‌ها
+    # 3️⃣ نصب کتابخانه‌های پایتون
+    - name: 📦 نصب کتابخانه‌های پایتون
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: 📁 ایجاد پوشه‌ها
+    # 4️⃣ ایجاد پوشه‌های ضروری
+    - name: 📁 ایجاد پوشه‌های لاگ و نتایج
       run: |
         mkdir -p logs results src/logs src/results
 
-    - name: ▶️ اجرای سیستم
+    # 5️⃣ اجرای سیستم معاملاتی با تنظیم PYTHONPATH
+    - name: ▶️ اجرای سیستم معاملاتی (حالت زنده)
       run: |
+        # تنظیم PYTHONPATH برای دسترسی به ماژول‌های داخل src/
+        export PYTHONPATH="${PYTHONPATH}:${{ github.workspace }}/src"
         cd src && python main.py --mode live
 
+    # 6️⃣ آپلود لاگ‌ها برای دیباگ (در هر صورت)
     - name: 📎 آپلود لاگ‌ها
       if: always()
       uses: actions/upload-artifact@v4
