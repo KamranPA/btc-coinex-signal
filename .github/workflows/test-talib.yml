@@ -1,97 +1,0 @@
-name: 🔍 تست رفع مشکل TA-Lib
-
-on:
-  workflow_dispatch:  # فقط با کلیک دستی اجرا شود
-  push:
-    branches: [ main, master ]
-
-jobs:
-  test-talib:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-    - name: 🧰 دریافت کد (Checkout)
-      uses: actions/checkout@v4
-
-    - name: 🐍 تنظیم Python 3.9
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-
-    - name: 📦 به‌روزرسانی سیستم و نصب پیش‌نیازها
-      run: |
-        sudo apt-get update -y
-        sudo apt-get install -y \
-          build-essential \
-          libssl-dev \
-          libffi-dev \
-          python3-dev \
-          wget \
-          libtool \
-          automake \
-          g++ \
-          make \
-          git
-
-    - name: 📥 دانلود TA-Lib از سورس
-      run: |
-        wget https://downloads.sourceforge.net/project/ta-lib/ta-lib/0.4.0/ta-lib-0.4.0-src.tar.gz
-        tar -xzf ta-lib-0.4.0-src.tar.gz
-        cd ta-lib && ls -la
-
-    - name: ⚙️ پیکربندی TA-Lib
-      run: |
-        cd ta-lib
-        ./configure --prefix=/usr
-
-    - name: 🔨 کامپایل TA-Lib (make)
-      run: |
-        cd ta-lib
-        make -j$(nproc)
-
-    - name: 🧩 نصب TA-Lib در سیستم
-      run: |
-        cd ta-lib
-        sudo make install
-        sudo ldconfig  # بارگذاری کتابخانه‌ها
-
-    - name: ✅ بررسی نصب فیزیکی کتابخانه
-      run: |
-        echo "🔍 بررسی وجود کتابخانه در سیستم..."
-        ls -la /usr/lib | grep -i ta_lib
-        find /usr/lib -name "*ta_lib*" 2>/dev/null || echo "کتابخانه یافت نشد."
-
-    - name: 🐍 نصب pip و wheel
-      run: |
-        python -m pip install --upgrade pip
-        pip install wheel
-
-    - name: 📦 نصب TA-Lib از PyPI (نسخه پایتون)
-      run: |
-        pip install TA-Lib==0.4.24
-
-    - name: 🧪 تست وارد کردن ماژول talib
-      run: |
-        python -c "
-        try:
-            import talib
-            print(f'🎉 موفق! TA-Lib وارد شد. نسخه: {talib.__version__}')
-            print('📌 نام ماژول:', talib.__name__)
-        except ImportError as e:
-            print(f'❌ خطا در وارد کردن talib: {e}')
-            exit(1)
-        except Exception as e:
-            print(f'⚠️ خطای ناشناخته: {e}')
-            exit(1)
-        "
-
-    - name: 📊 نمایش اطلاعات سیستم (برای دیباگ)
-      if: always()
-      run: |
-        echo "📋 اطلاعات سیستم:"
-        uname -a
-        python --version
-        pip list | grep -i talib
-        echo "🔍 مسیرهای کتابخانه:"
-        ldconfig -p | grep -i ta_lib
