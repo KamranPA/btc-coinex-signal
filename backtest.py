@@ -10,33 +10,43 @@ from telegram_bot import send_telegram_message
 from logger_config import logger
 import config
 
-def backtest(symbol, start_date, end_date, timeframe='15m'):
+def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='1h'):
     try:
-        logger.info(f"🔍 شروع بک‌تست برای {symbol} از {start_date} تا {end_date}")
-        df = fetch_kucoin_data(symbol, timeframe, limit=1000, start_date=start_date, end_date=end_date)
-        
+        # داده اصلی (تایم‌فریم پایین)
+        df = fetch_kucoin_data(symbol, timeframe, limit=500, start_date=start_date, end_date=end_date)
         if df.empty or len(df) < 50:
-            logger.warning("❌ داده کافی موجود نیست یا خالی است.")
+            logger.warning("داده کافی موجود نیست")
+            return
+
+        # داده روند (تایم‌فریم بالاتر)
+        df_htf = fetch_kucoin_data(symbol, higher_timeframe, limit=100)
+        if df_htf.empty:
+            logger.warning("داده تایم‌فریم بالاتر موجود نیست")
             return
 
         # محاسبه اندیکاتورها
         df['RSI'] = calculate_rsi(df['close'].values)
-        df['MACD_LINE'], df['MACD_SIGNAL'] = calculate_macd(df['close'].values)
         df['EMA50'] = calculate_ema(df['close'].values, 50)
         df['VOL_MA20'] = df['volume'].rolling(20).mean()
 
-        # بررسی سیگنال‌ها
+        # فیلتر روند از تایم‌فریم بالاتر
+        last_close_htf = df_htf['close'].iloc[-1]
+        ema50_htf = calculate_ema(df_htf['close'].values, 50)[-1]
+        uptrend = last_close_htf > ema50_htf
+        downtrend = last_close_htf < ema50_htf
+
         signals = []
         for i in range(1, len(df)):
             last = df.iloc[i]
             prev = df.iloc[i-1]
 
-            volume_condition = last['volume'] > 1.2 * last['VOL_MA20']
+            volume_condition = last['volume'] > 1.1 * last['VOL_MA20']  # فقط +10%
+            rsi_buy_condition = prev['RSI'] <= 35 and last['RSI'] > 35
+            rsi_sell_condition = prev['RSI'] >= 65 and last['RSI'] < 65
 
             # سیگنال خرید
-            if (last['close'] > last['EMA50'] and
-                last['MACD_LINE'] > last['MACD_SIGNAL'] and
-                prev['RSI'] <= 30 and last['RSI'] > 30 and
+            if (uptrend and
+                rsi_buy_condition and
                 volume_condition):
                 entry, sl, tp = get_entry_sl_tp("BUY", df.iloc[:i+1])
                 signals.append({
@@ -46,13 +56,12 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
                     'sl': sl,
                     'tp': tp,
                     'rsi': last['RSI'],
-                    'macd': last['MACD_LINE']
+                    'score': 3  # قوی
                 })
 
             # سیگنال فروش
-            elif (last['close'] < last['EMA50'] and
-                  last['MACD_LINE'] < last['MACD_SIGNAL'] and
-                  prev['RSI'] >= 70 and last['RSI'] < 70 and
+            elif (downtrend and
+                  rsi_sell_condition and
                   volume_condition):
                 entry, sl, tp = get_entry_sl_tp("SELL", df.iloc[:i+1])
                 signals.append({
@@ -62,47 +71,33 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
                     'sl': sl,
                     'tp': tp,
                     'rsi': last['RSI'],
-                    'macd': last['MACD_LINE']
+                    'score': 3
                 })
 
-        logger.info(f"🔍 تعداد سیگنال‌های پیدا شده: {len(signals)}")
+        logger.info(f"✅ {len(signals)} سیگنال قوی یافت شد.")
 
-        # ارسال نتایج به تلگرام
-        if signals:
-            logger.info(f"📌 {len(signals)} سیگنال یافت شد. آماده ارسال به تلگرام...")
-            if config.TELEGRAM_TOKEN and config.CHAT_ID:
-                logger.info(f"🔧 ارسال با توکن: {'✅' if config.TELEGRAM_TOKEN else '❌'} | چت آی‌دی: {'✅' if config.CHAT_ID else '❌'}")
-                msg = f"""
-📊 <b>نتیجه بک‌تست</b>
+        # ارسال به تلگرام
+        if signals and config.TELEGRAM_TOKEN and config.CHAT_ID:
+            msg = f"""
+🎯 <b>سیگنال‌های بهینه‌شده</b>
 📌 نماد: {symbol}
-📅 بازه زمانی: {start_date} تا {end_date}
+📅 بازه: {start_date} تا {end_date}
 ⏰ تایم‌فریم: {timeframe}
-📈 تعداد سیگنال: {len(signals)}
+📈 تعداد: {len(signals)}
 
-📝 سیگنال‌ها:
+📝 سیگنال‌ها (R:R > 1.5):
 """
-                for sig in signals[:5]:
-                    msg += f"""
-• {sig['type']} | زمان: {sig['time']} | قیمت ورود: {sig['entry']} | SL: {sig['sl']} | TP: {sig['tp']}
+            for sig in signals[:5]:
+                msg += f"""
+• {sig['type']} | {sig['time']} | ورود: {sig['entry']} | SL: {sig['sl']} | TP: {sig['tp']}
 """
-                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-                logger.info("✅ نتیجه بک‌تست به تلگرام ارسال شد.")
-            else:
-                logger.warning("⚠️  ارسال به تلگرام غیرفعال — توکن یا Chat ID وجود ندارد.")
-        else:
-            logger.info("ℹ️  هیچ سیگنالی در بازه زمانی مشخص شده یافت نشد.")
-            logger.info("💡 راهکار: بازه زمانی را گسترش دهید یا نماد دیگری را تست کنید.")
+            send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
+            logger.info("✅ سیگنال‌ها به تلگرام ارسال شد.")
 
-        # ذخیره نتایج
-        base_dir = "results"
-        symbol_clean = symbol.replace("/", "_").replace("-", "_")
-        full_path = os.path.join(base_dir, symbol_clean)
-        os.makedirs(full_path, exist_ok=True)
-
-        filename = f"{start_date}_to_{end_date}.csv"
-        filepath = os.path.join(full_path, filename)
-        df.to_csv(filepath, index=True)
-        logger.info(f"✅ نتایج بک‌تست ذخیره شد: {filepath}")
+        # ذخیره
+        os.makedirs("results", exist_ok=True)
+        df.to_csv(f"results/{symbol}_{start_date}_to_{end_date}.csv")
+        logger.info("✅ نتایج ذخیره شد.")
 
     except Exception as e:
         logger.error(f"❌ خطای بک‌تست: {e}")
