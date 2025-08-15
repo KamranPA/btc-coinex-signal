@@ -3,7 +3,7 @@ import argparse
 import pandas as pd
 import os
 from datetime import datetime
-from data_handler import fetch_binance_data
+from data_handler import fetch_kucoin_data
 from indicators import calculate_rsi, calculate_macd, calculate_ema
 from risk_management import get_entry_sl_tp
 from telegram_bot import send_telegram_message
@@ -12,7 +12,7 @@ import config
 
 def backtest(symbol, start_date, end_date, timeframe='15m'):
     try:
-        df = fetch_binance_data(symbol, timeframe, start_date=start_date, end_date=end_date)
+        df = fetch_kucoin_data(symbol, timeframe, limit=100, start_date=start_date, end_date=end_date)
         if len(df) < 50:
             logger.warning("داده کافی موجود نیست")
             return
@@ -74,18 +74,23 @@ def backtest(symbol, start_date, end_date, timeframe='15m'):
 
 📝 سیگنال‌ها:
 """
-            for sig in signals[:5]:  # فقط 5 تا نمایش ده
+            for sig in signals[:5]:
                 msg += f"""
 • {sig['type']} | زمان: {sig['time']} | قیمت ورود: {sig['entry']} | SL: {sig['sl']} | TP: {sig['tp']}
 """
             send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-            logger.info(f"✅ نتایج بک‌تست به تلگرام ارسال شد.")
+            logger.info(f"✅ نتیجه بک‌تست به تلگرام ارسال شد.")
 
         # ذخیره نتایج در results/
-        results_dir = "results"
-        os.makedirs(results_dir, exist_ok=True)
-        filename = f"{symbol}_{start_date}_to_{end_date}.csv"
-        filepath = os.path.join(results_dir, filename)
+        base_dir = "results"
+        symbol_dir = symbol.replace("/", "_")  # BTC/USDT → BTC_USDT
+        full_path = os.path.join(base_dir, symbol_dir)
+
+        # ایجاد پوشه‌های زیرمجموعه
+        os.makedirs(full_path, exist_ok=True)
+
+        filename = f"{start_date}_to_{end_date}.csv"
+        filepath = os.path.join(full_path, filename)
 
         df.to_csv(filepath, index=True)
         logger.info(f"✅ نتایج بک‌تست ذخیره شد: {filepath}")
