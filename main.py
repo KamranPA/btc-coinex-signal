@@ -5,8 +5,7 @@ from datetime import datetime, timezone, time as dt_time
 import logging
 
 from data_handler import fetch_kucoin_data
-from indicators import calculate_rsi, calculate_macd, calculate_ema
-from risk_management import get_entry_sl_tp
+from strategy import generate_signal
 from telegram_bot import send_telegram_message
 from logger_config import logger
 import config
@@ -25,68 +24,30 @@ def check_signal():
         return
 
     try:
-        df = fetch_kucoin_data(config.SYMBOL, config.TIMEFRAME, limit=100)
-        if df.empty or len(df) < 50:
+        df = fetch_kucoin_data(config.SYMBOL, config.TIMEFRAME, limit=200)
+        if df.empty or len(df) < 200:
             logger.warning("داده کافی موجود نیست")
             return
 
-        df['RSI'] = calculate_rsi(df['close'].values)
-        df['MACD_LINE'], df['MACD_SIGNAL'] = calculate_macd(df['close'].values)
-        df['EMA50'] = calculate_ema(df['close'].values, 50)
-        df['VOL_MA20'] = df['volume'].rolling(20).mean()
-
-        last = df.iloc[-1]
-        prev = df.iloc[-2]
-        volume_condition = last['volume'] > 1.2 * last['VOL_MA20']
-
-        # سیگنال خرید
-        if (last['close'] > last['EMA50'] and
-            last['MACD_LINE'] > last['MACD_SIGNAL'] and
-            prev['RSI'] <= 30 and last['RSI'] > 30 and
-            volume_condition):
-
-            entry, sl, tp = get_entry_sl_tp("BUY", df)
+        signal = generate_signal(df)
+        if signal and config.TELEGRAM_TOKEN and config.CHAT_ID:
             msg = f"""
-🟢 <b>سیگنال خرید</b>
+🟢 <b>{signal['type']} سیگنال</b>
 📌 نماد: {config.SYMBOL}
-🕒 زمان: {last.name}
-📊 قیمت ورود: {entry}
-🛑 حد ضرر: {sl}
-🎯 حد سود: {tp}
-🧮 RSI: {last['RSI']:.1f}
-🔵 MACD: {last['MACD_LINE']:.4f} | سیگنال: {last['MACD_SIGNAL']:.4f}
-📈 حجم: {last['volume']:.0f} (میانگین: {last['VOL_MA20']:.0f})
+🕒 زمان: {df.index[-1]}
+📊 ورود: {signal['entry']}
+🛑 حد ضرر: {signal['sl']}
+🎯 حد سود: {signal['tp']}
+🧮 RSI: {signal['rsi']}
+📈 حجم: {signal['volume_ratio']}x میانگین
             """
-            if config.TELEGRAM_TOKEN and config.CHAT_ID:
-                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-                logger.info(f"BUY سیگنال ارسال شد: {entry} | SL: {sl} | TP: {tp}")
-
-        # سیگنال فروش
-        elif (last['close'] < last['EMA50'] and
-              last['MACD_LINE'] < last['MACD_SIGNAL'] and
-              prev['RSI'] >= 70 and last['RSI'] < 70 and
-              volume_condition):
-
-            entry, sl, tp = get_entry_sl_tp("SELL", df)
-            msg = f"""
-🔴 <b>سیگنال فروش</b>
-📌 نماد: {config.SYMBOL}
-🕒 زمان: {last.name}
-📊 قیمت ورود: {entry}
-🛑 حد ضرر: {sl}
-🎯 حد سود: {tp}
-🧮 RSI: {last['RSI']:.1f}
-🔴 MACD: {last['MACD_LINE']:.4f} | سیگنال: {last['MACD_SIGNAL']:.4f}
-📉 حجم: {last['volume']:.0f} (میانگین: {last['VOL_MA20']:.0f})
-            """
-            if config.TELEGRAM_TOKEN and config.CHAT_ID:
-                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-                logger.info(f"SELL سیگنال ارسال شد: {entry} | SL: {sl} | TP: {tp}")
+            send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
+            logger.info(f"{signal['type']} سیگنال ارسال شد: {signal['entry']}")
 
     except Exception as e:
         logger.error(f"❌ خطای سیستم: {e}")
 
 if __name__ == "__main__":
-    logger.info("🚀 سیستم سیگنال‌دهی راه‌اندازی شد (اجرای یکباره)")
+    logger.info("🚀 سیستم سیگنال‌دهی راه‌اندازی شد (هر 1 ساعت)")
     check_signal()
     logger.info("✅ سیستم به پایان رسید")
