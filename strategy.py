@@ -37,7 +37,9 @@ def generate_signal(df):
     last = df.iloc[-1]
     prev = df.iloc[-2]
 
-    # شرایط خرید
+    signals = []
+
+    # 🔹 سیگنال خرید (Long) — عقب‌نشینی در روند صعودی
     if (last['close'] > ema200[-1] and
         last['close'] > last['open'] and  # کندل سبز
         (rsi[-2] < 45 or rsi[-3] < 45) and
@@ -46,16 +48,17 @@ def generate_signal(df):
         entry = last['close']
         sl = min(low[-3:]) * 0.995
         tp = entry + 2 * (entry - sl)
-        return {
+        signals.append({
             'type': 'BUY',
             'entry': round(entry, 4),
             'sl': round(sl, 4),
             'tp': round(tp, 4),
             'rsi': round(rsi[-1], 1),
-            'volume_ratio': round(volume[-1] / vol_ma5[-1], 2)
-        }
+            'volume_ratio': round(volume[-1] / vol_ma5[-1], 2),
+            'reason': 'Pullback in uptrend'
+        })
 
-    # شرایط فروش (اختیاری)
+    # 🔹 سیگنال فروش (Short) — عقب‌نشینی در روند نزولی
     elif (last['close'] < ema200[-1] and
           last['close'] < last['open'] and  # کندل قرمز
           (rsi[-2] > 55 or rsi[-3] > 55) and
@@ -64,13 +67,14 @@ def generate_signal(df):
         entry = last['close']
         sl = max(high[-3:]) * 1.005
         tp = entry - 2 * (sl - entry)
-        return {
+        signals.append({
             'type': 'SELL',
             'entry': round(entry, 4),
             'sl': round(sl, 4),
             'tp': round(tp, 4),
             'rsi': round(rsi[-1], 1),
-            'volume_ratio': round(volume[-1] / vol_ma5[-1], 2)
-        }
+            'volume_ratio': round(volume[-1] / vol_ma5[-1], 2),
+            'reason': 'Pullback in downtrend'
+        })
 
-    return None
+    return signals  # ممکن است 0، 1 یا 2 سیگنال برگرداند
