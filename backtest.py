@@ -1,8 +1,9 @@
 # backtest.py
+import argparse
 import pandas as pd
 import os
 from datetime import datetime
-from data_handler import fetch_binance_data
+from data_handler import fetch_kucoin_data
 from strategy import generate_signal
 from telegram_bot import send_telegram_message
 from logger_config import logger
@@ -10,7 +11,7 @@ import config
 
 def backtest(symbol, start_date, end_date, timeframe='1h'):
     try:
-        df = fetch_binance_data(symbol, timeframe, limit=1000, start_date=start_date, end_date=end_date)
+        df = fetch_kucoin_data(symbol, timeframe, limit=1000, start_date=start_date, end_date=end_date)
         if df.empty or len(df) < 200:
             logger.warning("داده کافی موجود نیست")
             return
@@ -31,7 +32,6 @@ def backtest(symbol, start_date, end_date, timeframe='1h'):
                 tp = signal['tp']
                 type_ = signal['type']
 
-                # بررسی خروج
                 exited = False
                 for j in range(1, MAX_HOLD):
                     row = df.iloc[i + j]
@@ -68,7 +68,7 @@ def backtest(symbol, start_date, end_date, timeframe='1h'):
                     'sl': sl,
                     'tp': tp,
                     'exit_bar': i + j if exited else i + MAX_HOLD - 1,
-                    'status': 'win' if (exited and (type_ == 'BUY' and row['high'] >= tp or type_ == 'SELL' and row['low'] <= tp)) or (not exited and final_price > entry) else 'loss'
+                    'status': 'win' if (exited and ((type_ == 'BUY' and row['high'] >= tp) or (type_ == 'SELL' and row['low'] <= tp))) or (not exited and ((type_ == 'BUY' and final_price > entry) or (type_ == 'SELL' and final_price < entry))) else 'loss'
                 })
 
         total = wins + losses
@@ -97,6 +97,7 @@ def backtest(symbol, start_date, end_date, timeframe='1h'):
 💡 هدف: سیگنال منظم + وین ریت بالا
 """
             send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
+            logger.info("✅ نتایج به تلگرام ارسال شد.")
 
         os.makedirs("results", exist_ok=True)
         pd.DataFrame(signals).to_csv(f"results/new_strategy_{symbol}_{start_date}_to_{end_date}.csv", index=False)
@@ -106,7 +107,6 @@ def backtest(symbol, start_date, end_date, timeframe='1h'):
         logger.error(f"❌ خطای بک‌تست: {e}")
 
 if __name__ == "__main__":
-    import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--symbol', type=str, required=True)
     parser.add_argument('--start', type=str, required=True)
