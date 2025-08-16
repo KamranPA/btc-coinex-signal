@@ -10,31 +10,18 @@ from telegram_bot import send_telegram_message
 from logger_config import logger
 import config
 
-def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='4h'):
+def backtest(symbol, start_date, end_date, timeframe='15m'):
     try:
-        # داده اصلی (تایم‌فریم پایین)
         df = fetch_kucoin_data(symbol, timeframe, limit=1000, start_date=start_date, end_date=end_date)
         if df.empty or len(df) < 50:
             logger.warning("داده کافی موجود نیست")
             return
 
-        # داده روند (4h برای فیلتر قوی)
-        df_htf = fetch_kucoin_data(symbol, higher_timeframe, limit=100)
-        if df_htf.empty:
-            logger.warning("داده تایم‌فریم بالاتر موجود نیست")
-            return
-
         # محاسبه اندیکاتورها
         df['RSI'] = calculate_rsi(df['close'].values)
         df['EMA50'] = calculate_ema(df['close'].values, 50)
-        df['VOL_MA20'] = df['volume'].rolling(20).mean()
         df['MACD_LINE'], df['MACD_SIGNAL'] = calculate_macd(df['close'].values)
-
-        # فیلتر روند از 4h
-        last_close_htf = df_htf['close'].iloc[-1]
-        ema50_htf = calculate_ema(df_htf['close'].values, 50)[-1]
-        uptrend = last_close_htf > ema50_htf
-        downtrend = last_close_htf < ema50_htf
+        df['VOL_MA20'] = df['volume'].rolling(20).mean()
 
         # پارامترها
         RISK_REWARD_RATIO = 2.0
@@ -48,18 +35,22 @@ def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='4h
             last = df.iloc[i]
             prev = df.iloc[i-1]
 
-            # فیلترهای اصلی (سبک‌تر)
-            volume_condition = last['volume'] > 1.05 * last['VOL_MA20']  # فقط +5%
-            rsi_buy_condition = prev['RSI'] <= 38 and last['RSI'] > 38
-            rsi_sell_condition = prev['RSI'] >= 62 and last['RSI'] < 62
+            # شرط اصلی: روند (فقط EMA50)
+            uptrend = last['close'] > last['EMA50']
+            downtrend = last['close'] < last['EMA50']
 
-            # تأییدیه MACD (اختیاری — امتیاز می‌دهد، شرط نیست)
+            # شرط اصلی: RSI
+            rsi_buy_condition = prev['RSI'] <= 40 and last['RSI'] > 40  # خروج از نزول شدید
+            rsi_sell_condition = prev['RSI'] >= 60 and last['RSI'] < 60  # خروج از صعود شدید
+
+            # تأییدیه‌ها (اختیاری — امتیاز می‌دهند)
             macd_buy_ok = last['MACD_LINE'] > last['MACD_SIGNAL']
             macd_sell_ok = last['MACD_LINE'] < last['MACD_SIGNAL']
+            volume_up = last['volume'] > 1.05 * last['VOL_MA20']
 
-            # سیگنال خرید
+            # سیگنال خرید (فقط با روند و RSI)
             if not any(s['exit_bar'] is None for s in signals if s['type'] == 'BUY') and \
-               uptrend and rsi_buy_condition and volume_condition:
+               uptrend and rsi_buy_condition:
 
                 entry, sl, tp = get_entry_sl_tp("BUY", df.iloc[:i+1], risk_reward_ratio=RISK_REWARD_RATIO)
                 signals.append({
@@ -71,12 +62,12 @@ def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='4h
                     'exit_bar': None,
                     'exit_price': None,
                     'status': 'open',
-                    'score': 2 + (1 if macd_buy_ok else 0)  # 2 یا 3 امتیاز
+                    'score': 2 + (1 if macd_buy_ok else 0) + (1 if volume_up else 0)
                 })
 
             # سیگنال فروش
             elif not any(s['exit_bar'] is None for s in signals if s['type'] == 'SELL') and \
-                 downtrend and rsi_sell_condition and volume_condition:
+                 downtrend and rsi_sell_condition:
 
                 entry, sl, tp = get_entry_sl_tp("SELL", df.iloc[:i+1], risk_reward_ratio=RISK_REWARD_RATIO)
                 signals.append({
@@ -88,7 +79,7 @@ def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='4h
                     'exit_bar': None,
                     'exit_price': None,
                     'status': 'open',
-                    'score': 2 + (1 if macd_sell_ok else 0)
+                    'score': 2 + (1 if macd_sell_ok else 0) + (1 if volume_up else 0)
                 })
 
             # بررسی خروج
@@ -151,7 +142,7 @@ def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='4h
         # ارسال به تلگرام
         if config.TELEGRAM_TOKEN and config.CHAT_ID:
             msg = f"""
-🚀 <b>بک‌تست بهینه‌شده</b>
+🚀 <b>بک‌تست نهایی (سیگنال منظم)</b>
 📌 نماد: {symbol}
 📅 بازه: {start_date} تا {end_date}
 ⏰ تایم‌فریم: {timeframe}
@@ -162,8 +153,9 @@ def backtest(symbol, start_date, end_date, timeframe='15m', higher_timeframe='4h
 🎯 وین ریت: {win_rate:.1f}%
 🔁 نسبت R:R: {RISK_REWARD_RATIO}:1
 
-✅ فیلتر روند: 4h | RSI: 38/62 | حجم: +5% | MACD: تأییدیه
-💡 سیگنال‌های باکیفیت و قابل افزایش در صورت نیاز
+✅ شرط اصلی: روند + RSI
+✅ تأییدیه: MACD + حجم
+💡 هدف: 3+ سیگنال در ماه با وین ریت > 50%
 """
             send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
             logger.info("✅ نتایج به تلگرام ارسال شد.")
