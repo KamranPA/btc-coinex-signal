@@ -16,91 +16,119 @@ def backtest(symbol, start_date, end_date, timeframe='1h'):
             logger.warning("داده کافی موجود نیست")
             return
 
-        signals = []
-        wins = 0
-        losses = 0
+        long_signals = []
+        short_signals = []
+        long_wins = 0
+        long_losses = 0
+        short_wins = 0
+        short_losses = 0
         RISK_REWARD = 2.0
-        MAX_HOLD = 24  # حداکثر 24 کندل (24 ساعت)
+        MAX_HOLD = 24
 
         for i in range(200, len(df) - MAX_HOLD):
             window = df.iloc[:i+1]
-            signal = generate_signal(window)
+            signals = generate_signal(window)
 
-            if signal:
-                entry = signal['entry']
-                sl = signal['sl']
-                tp = signal['tp']
-                type_ = signal['type']
+            if signals:
+                for signal in signals:
+                    entry = signal['entry']
+                    sl = signal['sl']
+                    tp = signal['tp']
+                    type_ = signal['type']
 
-                exited = False
-                for j in range(1, MAX_HOLD):
-                    row = df.iloc[i + j]
+                    exited = False
+                    for j in range(1, MAX_HOLD):
+                        row = df.iloc[i + j]
+                        if type_ == 'BUY':
+                            if row['low'] <= sl:
+                                long_losses += 1
+                                exited = True
+                                break
+                            elif row['high'] >= tp:
+                                long_wins += 1
+                                exited = True
+                                break
+                        elif type_ == 'SELL':
+                            if row['high'] >= sl:
+                                short_losses += 1
+                                exited = True
+                                break
+                            elif row['low'] <= tp:
+                                short_wins += 1
+                                exited = True
+                                break
+                    if not exited:
+                        final_price = df.iloc[i + MAX_HOLD - 1]['close']
+                        if type_ == 'BUY':
+                            if final_price > entry:
+                                long_wins += 1
+                            else:
+                                long_losses += 1
+                        elif type_ == 'SELL':
+                            if final_price < entry:
+                                short_wins += 1
+                            else:
+                                short_losses += 1
+
                     if type_ == 'BUY':
-                        if row['low'] <= sl:
-                            losses += 1
-                            exited = True
-                            break
-                        elif row['high'] >= tp:
-                            wins += 1
-                            exited = True
-                            break
-                    elif type_ == 'SELL':
-                        if row['high'] >= sl:
-                            losses += 1
-                            exited = True
-                            break
-                        elif row['low'] <= tp:
-                            wins += 1
-                            exited = True
-                            break
-                if not exited:
-                    final_price = df.iloc[i + MAX_HOLD - 1]['close']
-                    if (type_ == 'BUY' and final_price > entry) or \
-                       (type_ == 'SELL' and final_price < entry):
-                        wins += 1
+                        long_signals.append({
+                            'entry_bar': i,
+                            'entry': entry,
+                            'sl': sl,
+                            'tp': tp,
+                            'exit_bar': i + j if exited else i + MAX_HOLD - 1,
+                            'status': 'win' if (exited and row['high'] >= tp) or (not exited and final_price > entry) else 'loss'
+                        })
                     else:
-                        losses += 1
+                        short_signals.append({
+                            'entry_bar': i,
+                            'entry': entry,
+                            'sl': sl,
+                            'tp': tp,
+                            'exit_bar': i + j if exited else i + MAX_HOLD - 1,
+                            'status': 'win' if (exited and row['low'] <= tp) or (not exited and final_price < entry) else 'loss'
+                        })
 
-                signals.append({
-                    'type': type_,
-                    'entry_bar': i,
-                    'entry': entry,
-                    'sl': sl,
-                    'tp': tp,
-                    'exit_bar': i + j if exited else i + MAX_HOLD - 1,
-                    'status': 'win' if (exited and ((type_ == 'BUY' and row['high'] >= tp) or (type_ == 'SELL' and row['low'] <= tp))) or (not exited and ((type_ == 'BUY' and final_price > entry) or (type_ == 'SELL' and final_price < entry))) else 'loss'
-                })
+        total_long = long_wins + long_losses
+        total_short = short_wins + short_losses
+        win_rate_long = (long_wins / total_long * 100) if total_long > 0 else 0
+        win_rate_short = (short_wins / total_short * 100) if total_short > 0 else 0
 
-        total = wins + losses
-        win_rate = (wins / total * 100) if total > 0 else 0
-
-        logger.info(f"📊 نتایج بک‌تست برای {symbol}")
-        logger.info(f"📈 تعداد معاملات: {total}")
-        logger.info(f"✅ موفق: {wins} | ❌ ناموفق: {losses}")
-        logger.info(f"🎯 وین ریت: {win_rate:.1f}%")
+        logger.info(f"📊 نتایج بک‌تست دوطرفه برای {symbol}")
+        logger.info(f"📈 خرید (Long): {total_long} معامله | ✅ {long_wins} | ❌ {long_losses} | 🎯 {win_rate_long:.1f}%")
+        logger.info(f"📉 فروش (Short): {total_short} معامله | ✅ {short_wins} | ❌ {short_losses} | 🎯 {win_rate_short:.1f}%")
         logger.info(f"🔁 نسبت R:R: {RISK_REWARD}:1")
 
         if config.TELEGRAM_TOKEN and config.CHAT_ID:
             msg = f"""
-🚀 <b>استراتژی جدید: EMA200 + RSI Pullback</b>
+🚀 <b>سیستم دوطرفه: EMA200 + RSI Pullback</b>
 📌 نماد: {symbol}
 📅 بازه: {start_date} تا {end_date}
 ⏰ تایم‌فریم: {timeframe}
 
-📈 تعداد معاملات: {total}
-✅ موفق: {wins}
-❌ ناموفق: {losses}
-🎯 وین ریت: {win_rate:.1f}%
-🔁 نسبت R:R: {RISK_REWARD}:1
+📈 <b>خرید (Long)</b>
+• تعداد: {total_long}
+• موفق: {long_wins}
+• ناموفق: {long_losses}
+• وین ریت: {win_rate_long:.1f}%
 
-✅ ورود در عقب‌نشینی روند
-💡 هدف: سیگنال منظم + وین ریت بالا
+📉 <b>فروش (Short)</b>
+• تعداد: {total_short}
+• موفق: {short_wins}
+• ناموفق: {short_losses}
+• وین ریت: {win_rate_short:.1f}%
+
+🔁 نسبت R:R: {RISK_REWARD}:1
+💡 ورود در عقب‌نشینی روند
 """
             send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
             logger.info("✅ نتایج به تلگرام ارسال شد.")
 
         os.makedirs("results", exist_ok=True)
-        pd.DataFrame(signals).to_csv(f"results/new_strategy_{symbol}_{start_date}_to_{end_date}.csv", index=False)
+        if long_signals:
+            pd.DataFrame(long_signals).to_csv(f"results/long_{symbol}_{start_date}_to_{end_date}.csv", index=False)
+        if short_signals:
+            pd.DataFrame(short_signals).to_csv(f"results/short_{symbol}_{start_date}_to_{end_date}.csv", index=False)
         logger.info("✅ نتایج ذخیره شد.")
 
     except Exception as e:
