@@ -29,10 +29,11 @@ def check_signal():
             logger.warning("داده کافی موجود نیست")
             return
 
-        signal = generate_signal(df)
-        if signal and config.TELEGRAM_TOKEN and config.CHAT_ID:
-            msg = f"""
-🟢 <b>{signal['type']} سیگنال</b>
+        signals = generate_signal(df)
+        if signals and config.TELEGRAM_TOKEN and config.CHAT_ID:
+            for signal in signals:
+                msg = f"""
+{'🟢 <b>سیگنال خرید (Long)</b>' if signal['type'] == 'BUY' else '🔴 <b>سیگنال فروش (Short)</b>'}
 📌 نماد: {config.SYMBOL}
 🕒 زمان: {df.index[-1]}
 📊 ورود: {signal['entry']}
@@ -40,14 +41,15 @@ def check_signal():
 🎯 حد سود: {signal['tp']}
 🧮 RSI: {signal['rsi']}
 📈 حجم: {signal['volume_ratio']}x میانگین
-            """
-            send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-            logger.info(f"{signal['type']} سیگنال ارسال شد: {signal['entry']}")
+🔍 دلیل: {signal['reason']}
+                """
+                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
+                logger.info(f"{signal['type']} سیگنال ارسال شد: {signal['entry']}")
 
     except Exception as e:
         logger.error(f"❌ خطای سیستم: {e}")
 
 if __name__ == "__main__":
-    logger.info("🚀 سیستم سیگنال‌دهی راه‌اندازی شد (هر 1 ساعت)")
+    logger.info("🚀 سیستم سیگنال‌دهی دوطرفه راه‌اندازی شد (هر 1 ساعت)")
     check_signal()
-    logger.info("✅ سیستم به پایان رسید")
+    logger.info("✅ سیستم به پایان رسید")پپ
