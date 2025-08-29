@@ -1,7 +1,9 @@
-# .github/workflows/backtest.yml
 name: Manual Backtest
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       symbol:
@@ -18,12 +20,12 @@ on:
         type: string
         description: 'Start date (YYYY-MM-DD)'
         required: true
-        default: '2025-01-01'
+        default: '2023-01-01'
       end_date:
         type: string
         description: 'End date (YYYY-MM-DD)'
         required: true
-        default: '2025-08-21'
+        default: '2024-01-01'
 
 jobs:
   backtest:
