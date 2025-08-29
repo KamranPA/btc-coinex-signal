@@ -17,12 +17,12 @@ on:
         type: string
         description: 'Start date (YYYY-MM-DD)'
         required: true
-        default: '2023-01-01'
+        default: '205-08-01'
       end_date:
         type: string
         description: 'End date (YYYY-MM-DD)'
         required: true
-        default: '2024-01-01'
+        default: '2025-08-21'
 
 jobs:
   backtest:
