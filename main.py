@@ -1,7 +1,5 @@
-# main.py
-# RSI Momentum + Ichimoku Backtesting System for Cryptocurrencies
-# Powered by CoinEx API and GitHub Actions
-# Sends results to Telegram via GitHub Secrets
+# This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+# If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import json
 import os
@@ -55,9 +53,11 @@ def load_data_from_coinex(symbol="BTC-USDT", timeframe="1h", limit=1000):
     """
     Fetch real OHLCV data from CoinEx API
     """
+    # Normalize symbol: BTC-USDT → btcusdt
+    market_name = symbol.lower().replace('-', '')
     url = "https://api.coinex.com/v1/market/kline"
     params = {
-        'market': symbol.replace('-', ''),
+        'market': market_name,
         'type': timeframe,
         'limit': limit
     }
@@ -103,13 +103,23 @@ def calculate_ichimoku(df, tenkan=9, kijun=26, senkou=52):
 # --- Detect RSI Momentum Divergence ---
 def detect_rsi_momentum_divergence(df, rsi_length=14, momentum_period=10, lookback=5):
     df['momentum'] = df['close'].diff(momentum_period)
-    df['rsi'] = ta.momentum.RSIIndicator(df['momentum'], window=rsi_length).rsi()
+    try:
+        from ta.momentum import RSIIndicator
+        rsi_indicator = RSIIndicator(close=df['momentum'], window=rsi_length)
+        df['rsi'] = rsi_indicator.rsi()
+    except:
+        logger.error("❌ Failed to calculate RSI. Is 'ta' installed?")
+        return [], []
 
     def is_pivot_low(series, i, lb=lookback):
+        if i <= lb or i >= len(series) - lb:
+            return False
         return all(series[i] < series[i-j] for j in range(1, lb+1)) and \
                all(series[i] < series[i+j] for j in range(1, lb+1))
 
     def is_pivot_high(series, i, lb=lookback):
+        if i <= lb or i >= len(series) - lb:
+            return False
         return all(series[i] > series[i-j] for j in range(1, lb+1)) and \
                all(series[i] > series[i+j] for j in range(1, lb+1))
 
@@ -117,12 +127,12 @@ def detect_rsi_momentum_divergence(df, rsi_length=14, momentum_period=10, lookba
     bearish_div = []
 
     for i in range(lookback, len(df) - lookback):
-        # Bullish Divergence: Price lower low, RSI higher low
+        # Bullish Divergence
         if is_pivot_low(df['low'], i) and is_pivot_low(df['rsi'], i):
             if df['low'].iloc[i] < df['low'].iloc[i-lookback] and df['rsi'].iloc[i] > df['rsi'].iloc[i-lookback]:
                 bullish_div.append(i)
 
-        # Bearish Divergence: Price higher high, RSI lower high
+        # Bearish Divergence
         if is_pivot_high(df['high'], i) and is_pivot_high(df['rsi'], i):
             if df['high'].iloc[i] > df['high'].iloc[i-lookback] and df['rsi'].iloc[i] < df['rsi'].iloc[i-lookback]:
                 bearish_div.append(i)
@@ -138,14 +148,16 @@ def generate_signals(df, settings):
 
     # Confirm bullish signal with Ichimoku
     for idx in bullish_div:
-        if df['close'].iloc[idx] > max(df['senkou_span_a'].iloc[idx], df['senkou_span_b'].iloc[idx]) and \
-           df['tenkan_sen'].iloc[idx] > df['kijun_sen'].iloc[idx]:
+        price = df['close'].iloc[idx]
+        kumo_top = max(df['senkou_span_a'].iloc[idx], df['senkou_span_b'].iloc[idx])
+        if price > kumo_top and df['tenkan_sen'].iloc[idx] > df['kijun_sen'].iloc[idx]:
             df['signal'].iloc[idx] = 1
 
     # Confirm bearish signal with Ichimoku
     for idx in bearish_div:
-        if df['close'].iloc[idx] < min(df['senkou_span_a'].iloc[idx], df['senkou_span_b'].iloc[idx]) and \
-           df['tenkan_sen'].iloc[idx] < df['kijun_sen'].iloc[idx]:
+        price = df['close'].iloc[idx]
+        kumo_bottom = min(df['senkou_span_a'].iloc[idx], df['senkou_span_b'].iloc[idx])
+        if price < kumo_bottom and df['tenkan_sen'].iloc[idx] < df['kijun_sen'].iloc[idx]:
             df['signal'].iloc[idx] = -1
 
     logger.info("✅ Signals generated using RSI Momentum + Ichimoku")
@@ -273,7 +285,7 @@ def send_telegram_report(report):
         else:
             logger.error(f"❌ Telegram send failed: {response.text}")
     except KeyError as e:
-        logger.warning(f"⚠️ Telegram skipped: {e} not found. Make sure GitHub Secrets are set correctly.")
+        logger.warning(f"⚠️ Telegram skipped: {e} not found. Check GitHub Secrets.")
     except Exception as e:
         logger.error(f"❌ Failed to send Telegram message: {e}")
 
@@ -293,7 +305,6 @@ def main():
 
     # Generate signals
     try:
-        import ta
         df = generate_signals(df, settings)
     except Exception as e:
         logger.error(f"❌ Signal generation failed: {e}")
