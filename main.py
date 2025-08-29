@@ -1,6 +1,7 @@
 # main.py
 # Entry point for the RSI + Ichimoku backtesting system
 
+import pandas as pd
 import json
 import os
 import yaml
