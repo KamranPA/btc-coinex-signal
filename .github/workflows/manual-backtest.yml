@@ -56,14 +56,18 @@ jobs:
           START_DATE: ${{ github.event.inputs.start_date }}T00:00:00
           END_DATE: ${{ github.event.inputs.end_date }}T00:00:00
         run: |
-          cat << EOF > config/backtest_config.yml
-backtest:
-  symbol: "$SYMBOL"
-  timeframe: "$TIMEFRAME"
-  start_date: "$START_DATE"
-  end_date: "$END_DATE"
-  mode: "manual"
-EOF
+          echo "backtest:" > config/backtest_config.yml
+          echo "  symbol: '$SYMBOL'" >> config/backtest_config.yml
+          echo "  timeframe: '$TIMEFRAME'" >> config/backtest_config.yml
+          echo "  start_date: '$START_DATE'" >> config/backtest_config.yml
+          echo "  end_date: '$END_DATE'" >> config/backtest_config.yml
+          echo "  mode: 'manual'" >> config/backtest_config.yml
+          echo "risk:" >> config/backtest_config.yml
+          echo "  stop_loss_percent: 1.0" >> config/backtest_config.yml
+          echo "  take_profit_percent: 3.0" >> config/backtest_config.yml
+          echo "debug:" >> config/backtest_config.yml
+          echo "  enable_logging: true" >> config/backtest_config.yml
+          echo "  log_level: 'INFO'" >> config/backtest_config.yml
 
       - name: Run main.py
         run: python main.py
