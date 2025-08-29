@@ -140,6 +140,9 @@ def generate_signals(df, settings):
 
     bullish_div, bearish_div = detect_rsi_momentum_divergence(df, settings['rsi_length'])
 
+    # Add index tracking for later use in Telegram
+    df['trade_index'] = range(len(df))
+
     # Bullish signal
     for idx in bullish_div:
         df['signal'].iloc[idx] = 1
@@ -182,12 +185,25 @@ def run_backtest(df, settings):
         # Exit Long
         if position == 'long':
             if df['low'].iloc[i] <= stop_loss:
-                trades.append({'type': 'long', 'entry': entry_price, 'exit': stop_loss, 'success': False})
+                trades.append({
+                    'type': 'long',
+                    'entry': entry_price,
+                    'exit': stop_loss,
+                    'success': False,
+                    'index': df['trade_index'].iloc[i]
+                })
                 total_trades += 1
                 position = None
             elif df['high'].iloc[i] >= take_profit:
                 profit = (take_profit - entry_price) / entry_price * 100
-                trades.append({'type': 'long', 'entry': entry_price, 'exit': take_profit, 'success': True, 'profit_pct': profit})
+                trades.append({
+                    'type': 'long',
+                    'entry': entry_price,
+                    'exit': take_profit,
+                    'success': True,
+                    'profit_pct': profit,
+                    'index': df['trade_index'].iloc[i]
+                })
                 total_trades += 1
                 win_count += 1
                 position = None
@@ -195,12 +211,25 @@ def run_backtest(df, settings):
         # Exit Short
         elif position == 'short':
             if df['high'].iloc[i] >= stop_loss:
-                trades.append({'type': 'short', 'entry': entry_price, 'exit': stop_loss, 'success': False})
+                trades.append({
+                    'type': 'short',
+                    'entry': entry_price,
+                    'exit': stop_loss,
+                    'success': False,
+                    'index': df['trade_index'].iloc[i]
+                })
                 total_trades += 1
                 position = None
             elif df['low'].iloc[i] <= take_profit:
                 profit = (entry_price - take_profit) / entry_price * 100
-                trades.append({'type': 'short', 'entry': entry_price, 'exit': take_profit, 'success': True, 'profit_pct': profit})
+                trades.append({
+                    'type': 'short',
+                    'entry': entry_price,
+                    'exit': take_profit,
+                    'success': True,
+                    'profit_pct': profit,
+                    'index': df['trade_index'].iloc[i]
+                })
                 total_trades += 1
                 win_count += 1
                 position = None
@@ -230,7 +259,7 @@ def run_backtest(df, settings):
     return report
 
 # --- Send Report to Telegram ---
-def send_telegram_report(report):
+def send_telegram_report(report, bt_config):
     try:
         import requests
         token = os.environ['TELEGRAM_BOT_TOKEN']
@@ -243,21 +272,39 @@ def send_telegram_report(report):
         win_rate = report['win_rate']
         profit = report['total_profit_percent']
 
-        message = f"""
-📊 *Backtest Results - RSI Momentum Divergence*
+        # Build detailed signal messages
+        signal_lines = []
+        start_dt = pd.to_datetime(report['start_time'])
+        for trade in report['trades']:
+            # Determine divergence type
+            div_type = "📈 Bullish Divergence" if trade['type'] == 'long' else "📉 Bearish Divergence"
+            
+            # Approximate signal time
+            signal_time = start_dt + pd.Timedelta(hours=trade['index'])
+            time_str = signal_time.strftime("%Y-%m-%d %H:%M")
 
+            status = "✅ Success" if trade['success'] else "❌ Failed"
+
+            sl_price = trade['entry'] * (0.99 if trade['type'] == 'long' else 1.01)
+
+            line = (f"{status} | {div_type}\n"
+                    f"🕒 {time_str} | {bt_config['symbol']} | {bt_config['timeframe']}\n"
+                    f"💰 Entry: {trade['entry']:.2f} → TP: {trade['exit']:.2f}\n"
+                    f"🛑 SL: {sl_price:.2f}\n")
+            signal_lines.append(line)
+
+        message = f"""
+🚀 *RSI Momentum Divergence Alert - Backtest Results*
+
+📊 *Summary*
 📈 Total Trades: {total}
 ✅ Successful: {wins}
 ❌ Failed: {fails}
 🎯 Win Rate: {win_rate}%
 💰 Total Profit: {profit}%
 
-🔍 *Trade Details*:
-"""
-        for trade in report['trades'][:5]:
-            status = "✅ Success" if trade['success'] else "❌ Failed"
-            message += f"\n{status} | {trade['type'].title()}\n"
-            message += f"💰 Entry: {trade['entry']:.2f} → Exit: {trade['exit']:.2f}\n"
+🔍 *Signal Details*:
+""" + "\n".join(signal_lines)
 
         if len(report['trades']) > 5:
             message += f"\n... and {len(report['trades']) - 5} more."
@@ -303,7 +350,7 @@ def main():
 
     # Send to Telegram (if secrets are set)
     if 'TELEGRAM_BOT_TOKEN' in os.environ and 'TELEGRAM_CHAT_ID' in os.environ:
-        send_telegram_report(report)
+        send_telegram_report(report, bt_config)  # ارسال bt_config برای نمایش نماد و تایم‌فریم
     else:
         logger.warning("⚠️ Telegram skipped: Environment variables not set. Check GitHub Secrets.")
 
