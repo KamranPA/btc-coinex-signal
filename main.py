@@ -1,10 +1,10 @@
 import json
+import yaml
 from src.utils.data_loader import load_data_from_coinex
 from src.strategy.rsi_ichimoku_strategy import generate_signals
 from src.backtest.backtester import Backtester
 from src.telegram.notifier import send_telegram_report
 from src.utils.logger import setup_logger
-
 def main():
     logger = setup_logger()
 
