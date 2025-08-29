@@ -1,55 +1,39 @@
-# main.py
-import time
-import schedule
-from datetime import datetime, timezone, time as dt_time
-import logging
+import json
+from src.utils.data_loader import load_data_from_coinex
+from src.strategy.rsi_ichimoku_strategy import generate_signals
+from src.backtest.backtester import Backtester
+from src.telegram.notifier import send_telegram_report
+from src.utils.logger import setup_logger
 
-from data_handler import fetch_kucoin_data
-from strategy import generate_signal
-from telegram_bot import send_telegram_message
-from logger_config import logger
-import config
+def main():
+    logger = setup_logger()
 
-def is_market_active():
-    now_utc = datetime.now(timezone.utc).time()
-    start_block = dt_time(8, 30)
-    end_block = dt_time(3, 0)
-    if start_block <= now_utc or now_utc <= end_block:
-        return False
-    return True
+    # بارگذاری تنظیمات و محرمانه
+    with open('config/secrets.json') as f:
+        secrets = json.load(f)
+    with open('config/settings.json') as f:
+        settings = json.load(f)
 
-def check_signal():
-    if not is_market_active():
-        logger.info("🚫 سیستم در این بازه زمانی غیرفعال است (8:30 تا 3 UTC)")
-        return
+    symbol = settings['symbol']
+    timeframe = settings['timeframe']
 
     try:
-        df = fetch_kucoin_data(config.SYMBOL, config.TIMEFRAME, limit=200)
-        if df.empty or len(df) < 200:
-            logger.warning("داده کافی موجود نیست")
-            return
+        df = load_data_from_coinex(symbol, timeframe)
+        df = generate_signals(df)
+        backtester = Backtester(df)
+        report = backtester.run()
 
-        signals = generate_signal(df)
-        if signals and config.TELEGRAM_TOKEN and config.CHAT_ID:
-            for signal in signals:
-                msg = f"""
-{'🟢 <b>سیگنال خرید (Long)</b>' if signal['type'] == 'BUY' else '🔴 <b>سیگنال فروش (Short)</b>'}
-📌 نماد: {config.SYMBOL}
-🕒 زمان: {df.index[-1]}
-📊 ورود: {signal['entry']}
-🛑 حد ضرر: {signal['sl']}
-🎯 حد سود: {signal['tp']}
-🧮 RSI: {signal['rsi']}
-📈 حجم: {signal['volume_ratio']}x میانگین
-🔍 دلیل: {signal['reason']}
-                """
-                send_telegram_message(config.TELEGRAM_TOKEN, config.CHAT_ID, msg)
-                logger.info(f"{signal['type']} سیگنال ارسال شد: {signal['entry']}")
+        # ذخیره نتایج
+        import json
+        with open('results/backtest_report.json', 'w') as f:
+            json.dump(report, f, indent=2)
 
+        # ارسال به تلگرام
+        send_telegram_report(report, secrets)
+
+        logger.info("بکتست با موفقیت انجام شد و گزارش ارسال گردید.")
     except Exception as e:
-        logger.error(f"❌ خطای سیستم: {e}")
+        logger.error(f"خطا در اجرای سیستم: {e}")
 
 if __name__ == "__main__":
-    logger.info("🚀 سیستم سیگنال‌دهی دوطرفه راه‌اندازی شد (هر 1 ساعت)")
-    check_signal()
-    logger.info("✅ سیستم به پایان رسید")پپ
+    main()
