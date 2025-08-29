@@ -149,7 +149,7 @@ def generate_signals(df, settings):
     for idx in bearish_div:
         df['signal'].iloc[idx] = -1
 
-    logger.info(f"✅ Signals generated: {len(bullish_div)} bullish, {len(bearish_div)} bearish")
+    logger.info(f"✅ Detected {len(bullish_div)} bullish and {len(bearish_div)} bearish divergences")
     return df
 
 # --- Run Backtest ---
@@ -264,4 +264,95 @@ def send_telegram_report(report, bt_config):
         chat_id = os.environ['TELEGRAM_CHAT_ID']
         url = f"https://api.telegram.org/bot{token}/sendMessage"
 
-        total
+        total = report['total_trades']
+        wins = report['successful_trades']
+        fails = report['failed_trades']
+        win_rate = report['win_rate']
+        profit = report['total_profit_percent']
+
+        # Build detailed signal messages
+        signal_lines = []
+        start_dt = pd.to_datetime(report['start_time'])
+        for trade in report['trades']:
+            # Determine divergence type
+            div_type = "📈 Bullish Divergence" if trade['type'] == 'long' else "📉 Bearish Divergence"
+            
+            # Approximate signal time
+            signal_time = start_dt + pd.Timedelta(hours=trade['index'])
+            time_str = signal_time.strftime("%Y-%m-%d %H:%M")
+
+            status = "✅ Success" if trade['success'] else "❌ Failed"
+
+            sl_price = trade['entry'] * (0.99 if trade['type'] == 'long' else 1.01)
+
+            line = (f"{status} | {div_type}\n"
+                    f"🕒 {time_str} | {bt_config['symbol']} | {bt_config['timeframe']}\n"
+                    f"💰 Entry: {trade['entry']:.2f} → TP: {trade['exit']:.2f}\n"
+                    f"🛑 SL: {sl_price:.2f}\n")
+            signal_lines.append(line)
+
+        message = f"""
+🚀 *RSI Momentum Divergence Alert - Backtest Results*
+
+📊 *Summary*
+📈 Total Trades: {total}
+✅ Successful: {wins}
+❌ Failed: {fails}
+🎯 Win Rate: {win_rate}%
+💰 Total Profit: {profit}%
+
+🔍 *Signal Details*:
+""" + "\n".join(signal_lines)
+
+        if len(report['trades']) > 5:
+            message += f"\n... and {len(report['trades']) - 5} more."
+
+        payload = {
+            'chat_id': chat_id,
+            'text': message,
+            'parse_mode': 'Markdown'
+        }
+        response = requests.post(url, data=payload, timeout=10)
+        if response.status_code == 200:
+            logger.info("📤 Telegram report sent successfully!")
+        else:
+            logger.error(f"❌ Telegram send failed: {response.text}")
+    except KeyError as e:
+        logger.warning(f"⚠️ Telegram skipped: {e} not found. Check GitHub Secrets.")
+    except Exception as e:
+        logger.error(f"❌ Failed to send Telegram message: {e}")
+
+# --- Main Execution ---
+def main():
+    logger.info("🚀 Starting automated backtest...")
+
+    # Load configs
+    bt_config = load_backtest_config()
+    settings = load_settings()
+
+    # Load real data
+    df = load_data_from_coinex(bt_config['symbol'], bt_config['timeframe'])
+    if df is None or df.empty:
+        logger.error("❌ No data loaded. Exiting.")
+        exit(1)
+
+    # Generate signals (RSI Momentum only)
+    try:
+        df = generate_signals(df, settings)
+    except Exception as e:
+        logger.error(f"❌ Signal generation failed: {e}")
+        exit(1)
+
+    # Run backtest
+    report = run_backtest(df, settings)
+
+    # Send to Telegram (if secrets are set)
+    if 'TELEGRAM_BOT_TOKEN' in os.environ and 'TELEGRAM_CHAT_ID' in os.environ:
+        send_telegram_report(report, bt_config)
+    else:
+        logger.warning("⚠️ Telegram skipped: Environment variables not set. Check GitHub Secrets.")
+
+    logger.info("🎉 Backtest workflow completed successfully.")
+
+if __name__ == "__main__":
+    main()
