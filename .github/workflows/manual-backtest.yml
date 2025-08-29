@@ -17,12 +17,12 @@ on:
         type: string
         description: 'Start date (YYYY-MM-DD)'
         required: true
-        default: '205-08-01'
+        default: '2023-01-01'
       end_date:
         type: string
         description: 'End date (YYYY-MM-DD)'
         required: true
-        default: '2025-08-21'
+        default: '2024-01-01'
 
 jobs:
   backtest:
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload results
         if: success()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: backtest-results
           path: |
