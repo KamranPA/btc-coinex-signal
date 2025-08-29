@@ -1,3 +1,7 @@
+# .github/workflows/manual-backtest.yml
+# Automated backtesting workflow for RSI + Ichimoku strategy
+# Triggered manually with custom parameters
+
 name: Manual Backtest
 
 on:
@@ -5,45 +9,126 @@ on:
     inputs:
       symbol:
         type: string
-        description: 'Trading pair'
+        description: 'Trading pair (e.g. BTC-USDT, ETH-USDT)'
+        required: true
         default: 'BTC-USDT'
       timeframe:
         type: string
-        description: 'Timeframe'
+        description: 'Candle timeframe (e.g. 1h, 4h)'
+        required: true
         default: '1h'
       start_date:
         type: string
-        description: 'Start date'
-        default: '2025-08-01'
+        description: 'Backtest start date (YYYY-MM-DD)'
+        required: true
+        default: '2023-01-01'
       end_date:
         type: string
-        description: 'End date'
-        default: '2025-08-21'
+        description: 'Backtest end date (YYYY-MM-DD)'
+        required: true
+        default: '2024-01-01'
 
 jobs:
   backtest:
     runs-on: ubuntu-latest
+    name: Run Backtest
+
     steps:
-      - uses: actions/checkout@v4
+      # 1. Checkout code from repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. Set up Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - name: Install
+
+      # 3. Create required directories
+      - name: Create Directories
         run: |
-          pip install pandas ta requests PyYAML
-      - name: Show inputs
-        run: |
-          echo "Symbol: ${{ github.event.inputs.symbol }}"
-          echo "Timeframe: ${{ github.event.inputs.timeframe }}"
-          echo "Start: ${{ github.event.inputs.start_date }}"
           mkdir -p config
-          echo "backtest:" > config/backtest_config.yml
-          echo "  symbol: '${{ github.event.inputs.symbol }}'" >> config/backtest_config.yml
-          echo "  timeframe: '${{ github.event.inputs.timeframe }}'" >> config/backtest_config.yml
-          echo "  start_date: '${{ github.event.inputs.start_date }}T00:00:00'" >> config/backtest_config.yml
-          echo "  end_date: '${{ github.event.inputs.end_date }}T00:00:00'" >> config/backtest_config.yml
-      - name: Run
+          mkdir -p results
+          mkdir -p logs
+
+      # 4. Install Python dependencies
+      - name: Install Dependencies
         run: |
-          echo "✅ Backtest started. No main.py yet, but workflow works!"
-          echo "Config generated in config/backtest_config.yml"
+          pip install --upgrade pip
+          if [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          else
+            pip install pandas ta requests PyYAML
+          fi
+
+      # 5. Generate backtest configuration file
+      - name: Generate Config File
+        env:
+          SYMBOL: ${{ github.event.inputs.symbol }}
+          TIMEFRAME: ${{ github.event.inputs.timeframe }}
+          START_DATE: ${{ github.event.inputs.start_date }}T00:00:00
+          END_DATE: ${{ github.event.inputs.end_date }}T00:00:00
+        run: |
+          cat << EOF > config/backtest_config.yml
+backtest:
+  symbol: "$SYMBOL"
+  timeframe: "$TIMEFRAME"
+  start_date: "$START_DATE"
+  end_date: "$END_DATE"
+  limit: 1000
+  mode: "manual"
+risk:
+  stop_loss_percent: 1.0
+  take_profit_percent: 3.0
+debug:
+  enable_logging: true
+  log_level: "INFO"
+EOF
+          echo "✅ Configuration saved to config/backtest_config.yml"
+
+      # 6. Run the main backtest script
+      - name: Run Backtest (main.py)
+        run: |
+          if [ -f "main.py" ]; then
+            python main.py
+          else
+            echo "❌ Error: main.py not found in repository root."
+            exit 1
+          fi
+
+      # 7. Upload results as artifact
+      - name: Upload Backtest Results
+        if: success()
+        uses: actions/upload-artifact@v3
+        with:
+          name: backtest-results-${{ github.run_number }}
+          path: |
+            results/
+            logs/
+            config/backtest_config.yml
+          retention-days: 7
+
+      # 8. Optional: Send completion status to Telegram
+      - name: Notify Telegram (Success)
+        if: success() && secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SYMBOL: ${{ github.event.inputs.symbol }}
+          TF: ${{ github.event.inputs.timeframe }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+            -d chat_id=$CHAT \
+            -d text="✅ Backtest completed successfully!%0A%0ASymbol: $SYMBOL%0ATimeframe: $TF%0AStatus: Success" \
+            -d parse_mode="Markdown"
+
+      - name: Notify Telegram (Failure)
+        if: failure() && secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
+            -d chat_id=$CHAT \
+            -d text="❌ Backtest failed!%0A%0APlease check the workflow logs for details." \
+            -d parse_mode="Markdown"
