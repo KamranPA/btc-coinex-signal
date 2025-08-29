@@ -94,89 +94,25 @@ def load_data_from_coinex(symbol="BTC-USDT", timeframe="1h", limit=1000):
         logger.error(f"❌ Failed to fetch data from CoinEx: {e}")
         return None
 
-# --- Calculate Ichimoku Kinko Hyo ---
-def calculate_ichimoku(df, tenkan=9, kijun=26, senkou=52):
-    # Add a mock pivot for testing
-# Force a bullish divergence at index 100
-if len(df) > 100:
-    df['rsi'].iloc[100] = 50  # RSI higher low
-    df['low'].iloc[100] = df['low'].min() - 100  # Price lower low
-    df['signal'].iloc[100] = 1  # Long signal
-    high_tenkan = df['high'].rolling(tenkan).max()
-    low_tenkan = df['low'].rolling(tenkan).min()
-    df['tenkan_sen'] = (high_tenkan + low_tenkan) / 2
-
-    high_kijun = df['high'].rolling(kijun).max()
-    low_kijun = df['low'].rolling(kijun).min()
-    df['kijun_sen'] = (high_kijun + low_kijun) / 2
-
-    df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(kijun)
-    df['senkou_span_b'] = df['low'].rolling(senkou).min().rolling(senkou).mean().shift(kijun)
-    df['chikou_span'] = df['close'].shift(-kijun)
-
-    return df
-
-# --- Detect RSI Momentum Divergence ---
-def detect_rsi_momentum_divergence(df, rsi_length=14, momentum_period=10, lookback=5):
-    df['momentum'] = df['close'].diff(momentum_period)
-    try:
-        from ta.momentum import RSIIndicator
-        rsi_indicator = RSIIndicator(close=df['momentum'], window=rsi_length)
-        df['rsi'] = rsi_indicator.rsi()
-    except Exception as e:
-        logger.error(f"❌ Failed to calculate RSI: {e}")
-        return [], []
-
-    def is_pivot_low(series, i, lb=lookback):
-        if i <= lb or i >= len(series) - lb:
-            return False
-        return all(series[i] < series[i-j] for j in range(1, lb+1)) and \
-               all(series[i] < series[i+j] for j in range(1, lb+1))
-
-    def is_pivot_high(series, i, lb=lookback):
-        if i <= lb or i >= len(series) - lb:
-            return False
-        return all(series[i] > series[i-j] for j in range(1, lb+1)) and \
-               all(series[i] > series[i+j] for j in range(1, lb+1))
-
-    bullish_div = []
-    bearish_div = []
-
-    for i in range(lookback, len(df) - lookback):
-        # Bullish Divergence: Price lower low, RSI higher low
-        if is_pivot_low(df['low'], i) and is_pivot_low(df['rsi'], i):
-            if df['low'].iloc[i] < df['low'].iloc[i-lookback] and df['rsi'].iloc[i] > df['rsi'].iloc[i-lookback]:
-                bullish_div.append(i)
-
-        # Bearish Divergence: Price higher high, RSI lower high
-        if is_pivot_high(df['high'], i) and is_pivot_high(df['rsi'], i):
-            if df['high'].iloc[i] > df['high'].iloc[i-lookback] and df['rsi'].iloc[i] < df['rsi'].iloc[i-lookback]:
-                bearish_div.append(i)
-
-    return bullish_div, bearish_div
-
-# --- Generate Signals ---
+# --- Generate Signals (with Mock Signal) ---
 def generate_signals(df, settings):
-    df = calculate_ichimoku(df)
-    bullish_div, bearish_div = detect_rsi_momentum_divergence(df, settings['rsi_length'])
-
+    df = df.copy()
     df['signal'] = 0
 
-    # Confirm bullish signal with Ichimoku
-    for idx in bullish_div:
-        price = df['close'].iloc[idx]
-        kumo_top = max(df['senkou_span_a'].iloc[idx], df['senkou_span_b'].iloc[idx])
-        if price > kumo_top and df['tenkan_sen'].iloc[idx] > df['kijun_sen'].iloc[idx]:
-            df['signal'].iloc[idx] = 1
+    # ✅ Add a mock bullish signal at a specific index (e.g., 100)
+    mock_index = 100
+    if len(df) > mock_index:
+        df['signal'].iloc[mock_index] = 1  # Long signal
+        logger.info(f"🎯 Mock bullish signal added at index {mock_index} for testing")
+    else:
+        logger.warning("⚠️ Not enough data to add mock signal")
 
-    # Confirm bearish signal with Ichimoku
-    for idx in bearish_div:
-        price = df['close'].iloc[idx]
-        kumo_bottom = min(df['senkou_span_a'].iloc[idx], df['senkou_span_b'].iloc[idx])
-        if price < kumo_bottom and df['tenkan_sen'].iloc[idx] < df['kijun_sen'].iloc[idx]:
-            df['signal'].iloc[idx] = -1
+    # Optional: Add a mock bearish signal
+    # if len(df) > 200:
+    #     df['signal'].iloc[200] = -1  # Short signal
+    #     logger.info("🎯 Mock bearish signal added at index 200 for testing")
 
-    logger.info("✅ Signals generated using RSI Momentum + Ichimoku")
+    logger.info("✅ Signals generated (including mock signal)")
     return df
 
 # --- Run Backtest ---
@@ -319,7 +255,7 @@ def main():
         logger.error("❌ No data loaded. Exiting.")
         exit(1)
 
-    # Generate signals
+    # Generate signals (including mock)
     try:
         df = generate_signals(df, settings)
     except Exception as e:
