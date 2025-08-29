@@ -5,7 +5,6 @@ import json
 import os
 import yaml
 import logging
-import requests
 import pandas as pd
 from datetime import datetime
 
@@ -49,18 +48,27 @@ def load_settings():
     with open(settings_path, 'r') as f:
         return json.load(f)
 
-# --- Load Real Data from CoinEx API ---
+# --- Load Real Data from CoinEx API (Fixed) ---
 def load_data_from_coinex(symbol="BTC-USDT", timeframe="1h", limit=1000):
     """
-    Fetch real OHLCV data from CoinEx API
-    Corrects symbol format (e.g., BTC-USDT -> btcusdt)
+    Fetch real OHLCV data from CoinEx Spot API
+    Fixed: Correct market name and timeframe format
     """
     # Normalize symbol: BTC-USDT → btcusdt
     market_name = symbol.lower().replace('-', '')
+    
+    # Fix timeframe: 1h → 1hour, 4h → 4hour, etc.
+    tf_map = {
+        '1m': '1min', '3m': '3min', '5m': '5min', '15m': '15min', '30m': '30min',
+        '1h': '1hour', '2h': '2hour', '4h': '4hour', '6h': '6hour', '12h': '12hour',
+        '1d': '1day', '1w': '1week'
+    }
+    api_timeframe = tf_map.get(timeframe.lower(), '1hour')  # default
+
     url = "https://api.coinex.com/v1/market/kline"
     params = {
         'market': market_name,
-        'type': timeframe,
+        'type': api_timeframe,
         'limit': limit
     }
 
