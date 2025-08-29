@@ -1,23 +1,26 @@
 # .github/workflows/backtest.yml
-
 name: Manual Backtest
 
 on:
   workflow_dispatch:
     inputs:
       symbol:
+        type: string
         description: 'Trading pair (e.g. BTC-USDT)'
         required: true
         default: 'BTC-USDT'
       timeframe:
+        type: string
         description: 'Candle timeframe (e.g. 1h)'
         required: true
         default: '1h'
       start_date:
+        type: string
         description: 'Start date (YYYY-MM-DD)'
         required: true
         default: '2023-01-01'
       end_date:
+        type: string
         description: 'End date (YYYY-MM-DD)'
         required: true
         default: '2024-01-01'
@@ -27,23 +30,20 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1️⃣ تنظیمات اولیه
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2️⃣ نصب پایتون
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      # 3️⃣ نصب وابستگی‌ها
       - name: Install dependencies
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
+          pip install PyYAML requests pandas ta
 
-      # 4️⃣ ایجاد فایل backtest_config.yml از ورودی‌ها
       - name: Generate backtest config
         env:
           SYMBOL: ${{ github.event.inputs.symbol }}
@@ -68,29 +68,14 @@ debug:
   log_level: "INFO"
 EOF
 
-      # 5️⃣ اجرای بکتست
       - name: Run Backtest
         run: python main.py
 
-      # 6️⃣ آپلود نتایج
-      - name: Upload backtest report
+      - name: Upload results
         if: success()
         uses: actions/upload-artifact@v3
         with:
           name: backtest-results
           path: |
-            results/backtest_report.json
-            results/trades_log.csv
-            logs/bot.log
-
-      # 7️⃣ ارسال نتیجه به تلگرام (اختیاری - فقط اگر توکن تنظیم شده باشد)
-      - name: Send to Telegram
-        if: success() && secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          MESSAGE="✅ Backtest completed: ${{ github.event.inputs.symbol }} | ${{ github.event.inputs.timeframe }}"
-          curl -s -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" \
-          -d chat_id=$TELEGRAM_CHAT_ID \
-          -d text="$MESSAGE"
+            results/
+            logs/
