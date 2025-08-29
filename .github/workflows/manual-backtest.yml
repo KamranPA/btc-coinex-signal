@@ -1,7 +1,3 @@
-# .github/workflows/manual-backtest.yml
-# Automated backtesting workflow for RSI + Ichimoku strategy
-# Triggered manually with custom parameters
-
 name: Manual Backtest
 
 on:
@@ -9,50 +5,39 @@ on:
     inputs:
       symbol:
         type: string
-        description: 'Trading pair (e.g. BTC-USDT, ETH-USDT)'
+        description: 'Trading pair (e.g. BTC-USDT)'
         required: true
         default: 'BTC-USDT'
       timeframe:
         type: string
-        description: 'Candle timeframe (e.g. 1h, 4h)'
+        description: 'Candle timeframe (e.g. 1h)'
         required: true
         default: '1h'
       start_date:
         type: string
-        description: 'Backtest start date (YYYY-MM-DD)'
+        description: 'Start date (YYYY-MM-DD)'
         required: true
         default: '2023-01-01'
       end_date:
         type: string
-        description: 'Backtest end date (YYYY-MM-DD)'
+        description: 'End date (YYYY-MM-DD)'
         required: true
         default: '2024-01-01'
 
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    name: Run Backtest
 
     steps:
-      # 1. Checkout code from repository
-      - name: Checkout Repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Set up Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
-      # 3. Create required directories
-      - name: Create Directories
-        run: |
-          mkdir -p config
-          mkdir -p results
-          mkdir -p logs
-
-      # 4. Install Python dependencies
-      - name: Install Dependencies
+      - name: Install dependencies
         run: |
           pip install --upgrade pip
           if [ -f "requirements.txt" ]; then
@@ -61,8 +46,10 @@ jobs:
             pip install pandas ta requests PyYAML
           fi
 
-      # 5. Generate backtest configuration file
-      - name: Generate Config File
+      - name: Create config directory
+        run: mkdir -p config
+
+      - name: Generate backtest config
         env:
           SYMBOL: ${{ github.event.inputs.symbol }}
           TIMEFRAME: ${{ github.event.inputs.timeframe }}
@@ -75,60 +62,18 @@ backtest:
   timeframe: "$TIMEFRAME"
   start_date: "$START_DATE"
   end_date: "$END_DATE"
-  limit: 1000
   mode: "manual"
-risk:
-  stop_loss_percent: 1.0
-  take_profit_percent: 3.0
-debug:
-  enable_logging: true
-  log_level: "INFO"
 EOF
-          echo "✅ Configuration saved to config/backtest_config.yml"
 
-      # 6. Run the main backtest script
-      - name: Run Backtest (main.py)
-        run: |
-          if [ -f "main.py" ]; then
-            python main.py
-          else
-            echo "❌ Error: main.py not found in repository root."
-            exit 1
-          fi
+      - name: Run main.py
+        run: python main.py
 
-      # 7. Upload results as artifact
-      - name: Upload Backtest Results
+      - name: Upload results
         if: success()
         uses: actions/upload-artifact@v3
         with:
-          name: backtest-results-${{ github.run_number }}
+          name: backtest-results
           path: |
             results/
             logs/
             config/backtest_config.yml
-          retention-days: 7
-
-      # 8. Optional: Send completion status to Telegram
-      - name: Notify Telegram (Success)
-        if: success() && secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID
-        env:
-          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-          SYMBOL: ${{ github.event.inputs.symbol }}
-          TF: ${{ github.event.inputs.timeframe }}
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-            -d chat_id=$CHAT \
-            -d text="✅ Backtest completed successfully!%0A%0ASymbol: $SYMBOL%0ATimeframe: $TF%0AStatus: Success" \
-            -d parse_mode="Markdown"
-
-      - name: Notify Telegram (Failure)
-        if: failure() && secrets.TELEGRAM_BOT_TOKEN && secrets.TELEGRAM_CHAT_ID
-        env:
-          TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot$TOKEN/sendMessage" \
-            -d chat_id=$CHAT \
-            -d text="❌ Backtest failed!%0A%0APlease check the workflow logs for details." \
-            -d parse_mode="Markdown"
