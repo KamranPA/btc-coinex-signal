@@ -107,11 +107,6 @@ def generate_signals(df, settings):
     else:
         logger.warning("⚠️ Not enough data to add mock signal")
 
-    # Optional: Add a mock bearish signal
-    # if len(df) > 200:
-    #     df['signal'].iloc[200] = -1  # Short signal
-    #     logger.info("🎯 Mock bearish signal added at index 200 for testing")
-
     logger.info("✅ Signals generated (including mock signal)")
     return df
 
