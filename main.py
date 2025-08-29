@@ -1,7 +1,6 @@
 # main.py
-# Entry point for the RSI + Ichimoku backtesting system
+# Entry point for RSI + Ichimoku backtest with Telegram via GitHub Secrets
 
-import pandas as pd
 import json
 import os
 import yaml
@@ -39,7 +38,7 @@ def load_backtest_config():
             logger.error(f"❌ Failed to parse YAML config: {e}")
             exit(1)
 
-# --- Load Settings (strategy parameters) ---
+# --- Load Settings ---
 def load_settings():
     settings_path = 'config/settings.json'
     if not os.path.exists(settings_path):
@@ -48,21 +47,16 @@ def load_settings():
     with open(settings_path, 'r') as f:
         return json.load(f)
 
-# --- Mock Data Loader (Replace with real CoinEx API later) ---
+# --- Mock Data Loader ---
 def load_data(symbol, timeframe):
-    # در حالت واقعی، اینجا از CoinEx API استفاده کنید
-    # برای تست، یک دیتافریم خالی با ستون‌های مورد نیاز بسازیم
     import pandas as pd
     import numpy as np
-
-    # فقط برای شبیه‌سازی داده
     dates = pd.date_range(start='2023-01-01', periods=1000, freq='H')
     np.random.seed(42)
     close = 30000 + np.random.randn(1000).cumsum() * 10
     high = close * 1.01
     low = close * 0.99
     open_price = close[:-1].tolist() + [close[-1]]
-
     df = pd.DataFrame({
         'timestamp': dates,
         'open': open_price,
@@ -77,23 +71,18 @@ def load_data(symbol, timeframe):
 
 # --- Mock Signal Generator ---
 def generate_signals(df, settings):
-    import pandas as pd
-    # شبیه‌سازی سیگنال (در واقعیت از src.strategy استفاده کنید)
     df = df.copy()
     df['signal'] = 0
-    # هر 100 شمع یک سیگنال صعودی
     df.loc[df.index[::100], 'signal'] = 1
-    # هر 150 شمع یک سیگنال نزولی
     df.loc[df.index[75::150], 'signal'] = -1
-    logger.info("✅ Mock signals generated (for testing)")
+    logger.info("✅ Mock signals generated")
     return df
 
 # --- Mock Backtester ---
 def run_backtest(df):
-    from collections import defaultdict
+    import pandas as pd
     trades = []
     position = None
-    entry_idx = None
     win_count = 0
     total_trades = 0
 
@@ -101,22 +90,18 @@ def run_backtest(df):
         signal = df['signal'].iloc[i]
         price = df['close'].iloc[i]
 
-        # ورود
         if signal == 1 and not position:
             entry_price = price
             stop_loss = price * 0.99
             take_profit = price * 1.03
-            entry_idx = i
             position = 'long'
 
         elif signal == -1 and not position:
             entry_price = price
             stop_loss = price * 1.01
             take_profit = price * 0.97
-            entry_idx = i
             position = 'short'
 
-        # خروج
         if position == 'long':
             if df['low'].iloc[i] <= stop_loss:
                 trades.append({'type': 'long', 'entry': entry_price, 'exit': stop_loss, 'success': False})
@@ -139,7 +124,6 @@ def run_backtest(df):
                 win_count += 1
                 position = None
 
-    # گزارش
     win_rate = (win_count / total_trades * 100) if total_trades > 0 else 0
     report = {
         "total_trades": total_trades,
@@ -152,7 +136,6 @@ def run_backtest(df):
         "timestamp": datetime.now().isoformat()
     }
 
-    # ذخیره نتایج
     results_dir = "results"
     os.makedirs(results_dir, exist_ok=True)
     with open(f"{results_dir}/backtest_report.json", "w") as f:
@@ -165,11 +148,11 @@ def run_backtest(df):
     return report
 
 # --- Send Report to Telegram ---
-def send_telegram_report(report, secrets):
+def send_telegram_report(report):
     try:
         import requests
-        token = secrets['telegram']['bot_token']
-        chat_id = secrets['telegram']['chat_id']
+        token = os.environ['TELEGRAM_BOT_TOKEN']
+        chat_id = os.environ['TELEGRAM_CHAT_ID']
         url = f"https://api.telegram.org/bot{token}/sendMessage"
 
         total = report['total_trades']
@@ -200,8 +183,13 @@ def send_telegram_report(report, secrets):
             'text': message,
             'parse_mode': 'Markdown'
         }
-        requests.post(url, data=payload, timeout=10)
-        logger.info("📤 Telegram report sent successfully")
+        response = requests.post(url, data=payload, timeout=10)
+        if response.status_code == 200:
+            logger.info("📤 Telegram report sent successfully")
+        else:
+            logger.error(f"❌ Telegram send failed: {response.text}")
+    except KeyError as e:
+        logger.warning(f"⚠️ Telegram skipped: {e} not found in environment. Make sure GitHub Secrets are set.")
     except Exception as e:
         logger.error(f"❌ Failed to send Telegram message: {e}")
 
@@ -209,31 +197,15 @@ def send_telegram_report(report, secrets):
 def main():
     logger.info("🚀 Starting automated backtest...")
 
-    # 1. بارگذاری تنظیمات
     bt_config = load_backtest_config()
     settings = load_settings()
 
-    # 2. بارگذاری داده
-    logger.info(f"📥 Loading data for {bt_config['symbol']} on {bt_config['timeframe']}...")
     df = load_data(bt_config['symbol'], bt_config['timeframe'])
-
-    # 3. تولید سیگنال
     df = generate_signals(df, settings)
-
-    # 4. اجرای بکتست
     report = run_backtest(df)
 
-    # 5. ارسال به تلگرام (اگر تنظیمات وجود داشته باشد)
-    if os.path.exists('config/secrets.json'):
-        try:
-            with open('config/secrets.json', 'r') as f:
-                secrets = json.load(f)
-            if 'telegram' in secrets and secrets['telegram']['bot_token']:
-                send_telegram_report(report, secrets)
-        except Exception as e:
-            logger.error(f"Telegram setup failed: {e}")
-    else:
-        logger.warning("No secrets.json found. Skipping Telegram.")
+    # ارسال به تلگرام فقط اگر توکن و چت آی‌دی در محیط وجود داشته باشد
+    send_telegram_report(report)
 
     logger.info("🎉 Backtest workflow completed successfully.")
 
