@@ -101,10 +101,10 @@ def generate_signals(df, settings):
     df['trade_index'] = range(len(df))  # for Telegram timestamp
 
     # ✅ Add a mock bullish signal at index 100
-    mock_index = 100
-    if len(df) > mock_index:
-        df['signal'].iloc[mock_index] = 1  # Long signal
-        logger.info(f"🎯 Mock bullish signal added at index {mock_index} for testing")
+    #mock_index = 100
+    #if len(df) > mock_index:
+        #df['signal'].iloc[mock_index] = 1  # Long signal
+        #logger.info(f"🎯 Mock bullish signal added at index {mock_index} for testing")
     else:
         logger.warning("⚠️ Not enough data to add mock signal")
 
