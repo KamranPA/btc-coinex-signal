@@ -1,6 +1,4 @@
 {
-  "symbol": "BTC-USDT",
-  "timeframe": "1h",
   "rsi_length": 14,
   "momentum_period": 10,
   "ichimoku": {
@@ -11,5 +9,9 @@
   "risk": {
     "stop_loss_percent": 1.0,
     "take_profit_percent": 3.0
+  },
+  "debug": {
+    "enable_logging": true,
+    "log_level": "INFO"
   }
 }
