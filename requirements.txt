@@ -1,6 +1,0 @@
-requests
-pandas
-numpy
-python-dateutil
-schedule
-ccxt  # برای دریافت داده
