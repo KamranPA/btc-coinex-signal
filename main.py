@@ -52,6 +52,7 @@ def load_settings():
 def load_data_from_coinex(symbol="BTC-USDT", timeframe="1h", limit=1000):
     """
     Fetch real OHLCV data from CoinEx API
+    Corrects symbol format (e.g., BTC-USDT -> btcusdt)
     """
     # Normalize symbol: BTC-USDT → btcusdt
     market_name = symbol.lower().replace('-', '')
@@ -107,8 +108,8 @@ def detect_rsi_momentum_divergence(df, rsi_length=14, momentum_period=10, lookba
         from ta.momentum import RSIIndicator
         rsi_indicator = RSIIndicator(close=df['momentum'], window=rsi_length)
         df['rsi'] = rsi_indicator.rsi()
-    except:
-        logger.error("❌ Failed to calculate RSI. Is 'ta' installed?")
+    except Exception as e:
+        logger.error(f"❌ Failed to calculate RSI: {e}")
         return [], []
 
     def is_pivot_low(series, i, lb=lookback):
@@ -127,12 +128,12 @@ def detect_rsi_momentum_divergence(df, rsi_length=14, momentum_period=10, lookba
     bearish_div = []
 
     for i in range(lookback, len(df) - lookback):
-        # Bullish Divergence
+        # Bullish Divergence: Price lower low, RSI higher low
         if is_pivot_low(df['low'], i) and is_pivot_low(df['rsi'], i):
             if df['low'].iloc[i] < df['low'].iloc[i-lookback] and df['rsi'].iloc[i] > df['rsi'].iloc[i-lookback]:
                 bullish_div.append(i)
 
-        # Bearish Divergence
+        # Bearish Divergence: Price higher high, RSI lower high
         if is_pivot_high(df['high'], i) and is_pivot_high(df['rsi'], i):
             if df['high'].iloc[i] > df['high'].iloc[i-lookback] and df['rsi'].iloc[i] < df['rsi'].iloc[i-lookback]:
                 bearish_div.append(i)
