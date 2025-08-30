@@ -1,12 +1,13 @@
 # divergence_detector.py
 import numpy as np
 import pandas as pd
+from utils.logger_config import logger
 
 def calculate_rsi(series, length=14):
     delta = series.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=length).mean()
+    gain = delta.where(delta > 0, 0).rolling(window=length).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=length).mean()
-    rs = gain / loss
+    rs = gain / loss.replace(0, 1e-10)  # جلوگیری از تقسیم بر صفر
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
@@ -33,50 +34,76 @@ class DivergenceDetector:
         self.prepare_data()
 
     def prepare_data(self):
-        # محاسبه مومنتوم (مانند کد Pine)
+        logger.info("🔧 Preparing data: calculating momentum and RSI...")
         self.df['momentum'] = self.df['close'].diff(10)
         self.df['rsi'] = calculate_rsi(self.df['momentum'], self.rsi_length)
+        self.df.dropna(inplace=True)
+        logger.debug(f"📊 Data prepared. Shape: {self.df.shape}")
 
     def detect(self):
         df = self.df
         left, right = 5, 5
 
-        # پیدا کردن پیوت‌ها
+        logger.info("🔍 Starting divergence detection...")
         df['pl'] = find_pivot_low(df['low'], left, right)
         df['ph'] = find_pivot_high(df['high'], left, right)
 
+        pl_count = df['pl'].sum()
+        ph_count = df['ph'].sum()
+        logger.info(f"📌 Found {pl_count} pivot lows and {ph_count} pivot highs.")
+
         signals = []
 
-        # بررسی واگرایی صعودی (قیمت پایین‌تر، RSI بالاتر)
         for i in range(right, len(df)):
+            current_time = df.index[i]
+
+            # واگرایی صعودی
             if df['pl'].iloc[i]:
-                for j in range(i - 1, i - 20, -1):
-                    if df['pl'].iloc[j] and j >= 0:
+                logger.debug(f"📍 [Bullish Check] Pivot Low at {current_time}: price={df['low'].iloc[i]:.6f}")
+                for j in range(i - 1, max(i - 30, 0), -1):
+                    if df['pl'].iloc[j]:
                         price_ll = df['low'].iloc[i] < df['low'].iloc[j]
                         rsi_hl = df['rsi'].iloc[i] > df['rsi'].iloc[j]
+                        logger.debug(f"   → Compare PL[{j}] → PL[{i}]: Price LL={price_ll}, RSI HL={rsi_hl}")
+
                         if price_ll and rsi_hl:
-                            signals.append({
+                            trend_dir = 'With Trend' if df['close'].iloc[i] > df['close'].iloc[max(i-50,0)] else 'Counter-Trend'
+                            signal = {
                                 'type': 'Bullish',
-                                'direction': 'With Trend' if df['close'].iloc[i] > df['close'].iloc[i-50] else 'Counter-Trend',
-                                'timestamp': df.index[i],
+                                'direction': trend_dir,
+                                'timestamp': current_time,
                                 'price': df['low'].iloc[i],
-                                'rsi': df['rsi'].iloc[i]
-                            })
+                                'rsi': df['rsi'].iloc[i],
+                                'index': i,
+                                'symbol': getattr(self, 'symbol', 'UNKNOWN')
+                            }
+                            signals.append(signal)
+                            logger.info(f"✅ BULLISH DIVERGENCE DETECTED at {current_time}")
                         break
 
+            # واگرایی نزولی
             if df['ph'].iloc[i]:
-                for j in range(i - 1, i - 20, -1):
-                    if df['ph'].iloc[j] and j >= 0:
+                logger.debug(f"📍 [Bearish Check] Pivot High at {current_time}: price={df['high'].iloc[i]:.6f}")
+                for j in range(i - 1, max(i - 30, 0), -1):
+                    if df['ph'].iloc[j]:
                         price_hh = df['high'].iloc[i] > df['high'].iloc[j]
                         rsi_lh = df['rsi'].iloc[i] < df['rsi'].iloc[j]
+                        logger.debug(f"   → Compare PH[{j}] → PH[{i}]: Price HH={price_hh}, RSI LH={rsi_lh}")
+
                         if price_hh and rsi_lh:
-                            signals.append({
+                            trend_dir = 'With Trend' if df['close'].iloc[i] < df['close'].iloc[max(i-50,0)] else 'Counter-Trend'
+                            signal = {
                                 'type': 'Bearish',
-                                'direction': 'With Trend' if df['close'].iloc[i] < df['close'].iloc[i-50] else 'Counter-Trend',
-                                'timestamp': df.index[i],
+                                'direction': trend_dir,
+                                'timestamp': current_time,
                                 'price': df['high'].iloc[i],
-                                'rsi': df['rsi'].iloc[i]
-                            })
+                                'rsi': df['rsi'].iloc[i],
+                                'index': i,
+                                'symbol': getattr(self, 'symbol', 'UNKNOWN')
+                            }
+                            signals.append(signal)
+                            logger.info(f"✅ BEARISH DIVERGENCE DETECTED at {current_time}")
                         break
 
+        logger.info(f"🎯 Total signals found: {len(signals)}")
         return signals
