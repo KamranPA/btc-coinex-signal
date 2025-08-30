@@ -11,6 +11,14 @@ on:
         description: 'Timeframe (e.g. 1h, 4h, 1d)'
         required: true
         default: '1h'
+      start_date:
+        description: 'Start Date (YYYY-MM-DD)'
+        required: false
+        default: '2025-01-01'
+      end_date:
+        description: 'End Date (YYYY-MM-DD)'
+        required: false
+        default: '2025-04-05'
       limit:
         description: 'Number of candles (max 1000)'
         required: true
@@ -37,6 +45,8 @@ jobs:
         env:
           SYMBOL: ${{ github.event.inputs.symbol }}
           TIMEFRAME: ${{ github.event.inputs.timeframe }}
+          START_DATE: ${{ github.event.inputs.start_date }}
+          END_DATE: ${{ github.event.inputs.end_date }}
           LIMIT: ${{ github.event.inputs.limit }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -44,7 +54,7 @@ jobs:
 
       - name: Upload Logs
         if: always()
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4  # ✅ به‌روزرسانی به v4
         with:
           name: logs-${{ github.run_id }}
           path: logs/
