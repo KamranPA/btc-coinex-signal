@@ -1,32 +1,26 @@
 # data_fetcher.py
 import ccxt
 import pandas as pd
-import os
 from utils.logger_config import logger
 
-def fetch_ohlcv(symbol, timeframe, limit=500, api_key=None, api_secret=None):
+def fetch_ohlcv(symbol, timeframe, limit=500):
     """
-    داده OHLCV را از صرافی CoinEx دریافت می‌کند.
+    داده OHLCV را از API عمومی CoinEx دریافت می‌کند (بدون نیاز به API Key).
     """
-    logger.info(f"🚀 Fetching data from CoinEx | symbol={symbol}, timeframe={timeframe}, limit={limit}")
+    logger.info(f"🚀 Fetching data from CoinEx (Public API) | symbol={symbol}, timeframe={timeframe}, limit={limit}")
 
-    # تنظیمات اولیه CoinEx
+    # تنظیمات بدون API Key — فقط دسترسی عمومی
     exchange = ccxt.coinex({
         'enableRateLimit': True,
         'options': {
-            'defaultType': 'spot'  # فقط اسپات؛ برای فیوچرز: 'future'
-        }
+            'defaultType': 'spot'
+        },
+        # بدون apiKey و secret
     })
-
-    # تنظیم API Key و Secret (اختیاری)
-    if api_key and api_secret:
-        exchange.apiKey = api_key
-        exchange.secret = api_secret
-        logger.debug("🔐 API credentials loaded for CoinEx.")
 
     try:
         ohlcv = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
-        logger.info(f"✅ Successfully fetched {len(ohlcv)} candles from CoinEx.")
+        logger.info(f"✅ Successfully fetched {len(ohlcv)} candles from CoinEx public API.")
 
         if len(ohlcv) == 0:
             logger.warning("📭 No data returned from CoinEx. Check symbol and timeframe.")
