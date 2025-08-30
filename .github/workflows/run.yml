@@ -1,5 +1,4 @@
-# .github/workflows/run.yml
-name: Run Divergence Bot
+name: Run Divergence Bot (CoinEx)
 
 on:
   workflow_dispatch:
@@ -13,9 +12,13 @@ on:
         required: true
         default: '1h'
       limit:
-        description: 'Number of candles'
+        description: 'Number of candles (max 1000)'
         required: true
         default: '500'
+      use_api:
+        description: 'Use API credentials? (true/false)'
+        required: false
+        default: 'false'
 
 jobs:
   run-bot:
@@ -34,11 +37,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Divergence Bot
+      - name: Run Bot
         env:
           SYMBOL: ${{ github.event.inputs.symbol }}
           TIMEFRAME: ${{ github.event.inputs.timeframe }}
           LIMIT: ${{ github.event.inputs.limit }}
+          USE_API: ${{ github.event.inputs.use_api }}
+          COINEX_API_KEY: ${{ secrets.COINEX_API_KEY }}
+          COINEX_API_SECRET: ${{ secrets.COINEX_API_SECRET }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
+
+      - name: Upload Logs
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: logs-${{ github.run_id }}
+          path: logs/
