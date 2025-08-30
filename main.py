@@ -1,38 +1,60 @@
 # main.py
 import os
+import sys
+from utils.logger_config import logger
 from data_fetcher import fetch_ohlcv
 from divergence_detector import DivergenceDetector
 from telegram_notifier import send_telegram_message
 
 def main():
-    # تنظیمات از متغیرهای محیطی (GitHub Secrets)
-    symbol = os.getenv("SYMBOL", "BTC/USDT")
-    timeframe = os.getenv("TIMEFRAME", "1h")
-    limit = int(os.getenv("LIMIT", "500"))
+    try:
+        # تنظیمات از متغیرهای محیطی
+        symbol = os.getenv("SYMBOL", "BTC/USDT")
+        timeframe = os.getenv("TIMEFRAME", "1h")
+        limit = int(os.getenv("LIMIT", "500"))
+        use_api = os.getenv("USE_API", "false").lower() == "true"
 
-    print(f"🔍 Fetching {symbol} data on {timeframe}...")
+        api_key = os.getenv("COINEX_API_KEY") if use_api else None
+        api_secret = os.getenv("COINEX_API_SECRET") if use_api else None
 
-    df = fetch_ohlcv(symbol, timeframe, limit)
-    detector = DivergenceDetector(df)
-    signals = detector.detect()
+        logger.info("="*60)
+        logger.info("🚀 RSI MOMENTUM DIVERGENCE BOT (CoinEx) STARTED")
+        logger.info(f"⚙️  SYMBOL={symbol}, TIMEFRAME={timeframe}, LIMIT={limit}")
+        logger.info(f"🔐 API Mode: {'Enabled' if use_api else 'Disabled'}")
+        logger.info("="*60)
 
-    if not signals:
-        print("📭 No divergence signals found.")
-        return
+        # مرحله ۱: دریافت داده
+        df = fetch_ohlcv(symbol, timeframe, limit, api_key, api_secret)
+        if df.empty:
+            logger.critical("🛑 No data received. Exiting.")
+            sys.exit(1)
 
-    for sig in signals:
-        message = (
-            f"<b>📊 RSI Momentum Divergence Detected!</b>\n"
-            f"• Type: {sig['type']} 📈\n"
-            f"• Direction: {sig['direction']}\n"
-            f"• Symbol: {symbol}\n"
-            f"• Timeframe: {timeframe}\n"
-            f"• Time: {sig['timestamp']}\n"
-            f"• Price: ${sig['price']:.2f}\n"
-            f"• RSI: {sig['rsi']:.2f}"
-        )
-        print(message)
-        send_telegram_message(message)
+        # مرحله ۲: تشخیص واگرایی
+        detector = DivergenceDetector(df)
+        signals = detector.detect()
+
+        if not signals:
+            logger.info("📭 No divergence signals found. Run complete.")
+            return
+
+        # مرحله ۳: ارسال سیگنال
+        for sig in signals:
+            message = (
+                f"<b>🎯 RSI Momentum Divergence Detected!</b>\n"
+                f"• Type: <b>{sig['type']}</b> {'🟢📈' if sig['type'] == 'Bullish' else '🔴📉'}\n"
+                f"• Direction: <i>{sig['direction']}</i>\n"
+                f"• Symbol: <code>{symbol}</code>\n"
+                f"• Timeframe: <code>{timeframe}</code>\n"
+                f"• Time (UTC): <code>{sig['timestamp'].strftime('%Y-%m-%d %H:%M:%S')}</code>\n"
+                f"• Price: <code>${sig['price']:.6f}</code>\n"
+                f"• RSI: <code>{sig['rsi']:.2f}</code>"
+            )
+            logger.info(f"📤 Sending signal: {sig['type']} at {sig['timestamp']}")
+            send_telegram_message(message)
+
+    except Exception as e:
+        logger.exception("💥 CRITICAL ERROR in main execution")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
