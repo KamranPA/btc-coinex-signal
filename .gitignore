@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-.DS_Store
-.env
-config/secrets.json
-results/backtest_report.json
-results/trades_log.csv
-data/raw/*
-!data/raw/placeholder.txt
