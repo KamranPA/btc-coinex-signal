@@ -1,0 +1,44 @@
+# .github/workflows/run.yml
+name: Run Divergence Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Trading Pair (e.g. BTC/USDT)'
+        required: true
+        default: 'BTC/USDT'
+      timeframe:
+        description: 'Timeframe (e.g. 1h, 4h, 1d)'
+        required: true
+        default: '1h'
+      limit:
+        description: 'Number of candles'
+        required: true
+        default: '500'
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Divergence Bot
+        env:
+          SYMBOL: ${{ github.event.inputs.symbol }}
+          TIMEFRAME: ${{ github.event.inputs.timeframe }}
+          LIMIT: ${{ github.event.inputs.limit }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
