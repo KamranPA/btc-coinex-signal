@@ -1,7 +1,7 @@
-# main.py - نسخه نهایی با تست timestamp ثابت
+# main.py - نسخه نهایی با تأیید تاریخ
 import requests
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ———————————————————————
 # تنظیمات از متغیرهای محیطی
@@ -95,25 +95,23 @@ def analyze_candle(candle):
 
 def main():
     try:
-        # تست با timestamp ثابت برای 26 آگوست 2025 00:00 UTC
+        # محاسبه تاریخ
         target_dt = datetime.strptime(TARGET_DATE, "%Y-%m-%d")
         target_dt = target_dt.replace(hour=TARGET_HOUR, minute=0, second=0, microsecond=0)
 
-        # ✅ محاسبه دقیق timestamp
+        # محاسبه timestamp با timezone.utc
         start_time = int(target_dt.timestamp())
-        end_time = start_time + 3601  # حداقل 1 ثانیه بیشتر
+        end_time = start_time + 3601
 
-        # ✅ تأیید: آیا timestamp درست است؟
-        print(f"تاریخ ورودی: {target_dt}")
-        print(f"start_time (UTC): {start_time} -> {datetime.utcfromtimestamp(start_time)}")
-        print(f"end_time (UTC): {end_time} -> {datetime.utcfromtimestamp(end_time)}")
-
-        # ✅ تست دستی برای 26 آگوست 2025 00:00 UTC
-        # این تاریخ باید به 1756185600 تبدیل شود
-        expected_start = 1756185600
+        # ✅ تأیید تاریخ
+        expected_start = 1756185600  # 26 آگوست 2025 00:00 UTC
         if start_time != expected_start:
             send_telegram(f"⚠️ تاریخ اشتباه محاسبه شد!\nمحاسبه شده: {start_time}\nدرست: {expected_start}")
             return
+
+        print(f"تاریخ ورودی: {target_dt}")
+        print(f"start_time: {start_time} -> {datetime.utcfromtimestamp(start_time)}")
+        print(f"درست باید باشد: 1756185600 -> {datetime.utcfromtimestamp(1756185600)}")
 
         candles = fetch_candles(start_time, end_time)
         if not candles:
