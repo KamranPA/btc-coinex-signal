@@ -1,4 +1,4 @@
-# main.py - نسخه اصلاح‌شده با timestamp صحیح UTC
+# main.py - نسخه نهایی با interval صحیح
 import requests
 import os
 import calendar
@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 # ———————————————————————
 COINEX_API = "https://api.coinex.com/v1/market/kline"
 MARKET = "BTCUSDT"
-INTERVAL = "60"  # 1H
+INTERVAL = "1h"  # ✅ اصلاح شد: از "60" به "1h"
 
 def dt_to_timestamp(dt):
     """تبدیل datetime به timestamp با فرض UTC"""
@@ -41,16 +41,16 @@ def send_telegram(message):
 def fetch_candles(start_time, end_time):
     params = {
         "market": MARKET,
-        "interval": INTERVAL,
+        "interval": INTERVAL,  # ✅ "1h"
         "start_at": start_time,
         "end_at": end_time,
         "limit": 100
     }
-    print(f"در حال درخواست از API با پارامترها: {params}")  # لاگ برای دیباگ
+    print(f"در حال درخواست از API با پارامترها: {params}")
 
     try:
         response = requests.get(COINEX_API, params=params, timeout=10)
-        print(f"پاسخ API: {response.status_code} - {response.text}")  # دیباگ
+        print(f"پاسخ API: {response.status_code} - {response.text}")
 
         if response.status_code != 200:
             send_telegram(f"❌ خطای HTTP: {response.status_code}\n{response.text}")
@@ -68,7 +68,6 @@ def fetch_candles(start_time, end_time):
         return None
 
 def analyze_candle(candle):
-    # candle: [timestamp, open, close, high, low, volume, ...]
     o, c, h, l, v = float(candle[1]), float(candle[2]), float(candle[3]), float(candle[4]), float(candle[5])
     body = abs(c - o)
     upper_wick = h - max(o, c)
@@ -102,13 +101,11 @@ def analyze_candle(candle):
 
 def main():
     try:
-        # تبدیل ورودی
         target_dt = datetime.strptime(TARGET_DATE, "%Y-%m-%d")
         target_dt = target_dt.replace(hour=TARGET_HOUR, minute=0, second=0, microsecond=0)
 
-        # تبدیل صحیح به timestamp (UTC)
         start_time = dt_to_timestamp(target_dt)
-        end_time = start_time + 3600  # یک ساعت بعد
+        end_time = start_time + 3600
 
         print(f"هدف: {target_dt} -> start_at={start_time}, end_at={end_time}")
 
@@ -117,7 +114,6 @@ def main():
             send_telegram("❌ داده‌ای دریافت نشد.")
             return
 
-        # پیدا کردن کندل دقیق
         target_candle = None
         for candle in candles:
             ts = int(candle[0])
@@ -130,7 +126,6 @@ def main():
             send_telegram(analysis)
         else:
             send_telegram(f"❌ کندلی برای {target_dt.strftime('%Y-%m-%d %H:00')} یافت نشد.")
-            print("کندل‌های دریافتی:", candles)
 
     except Exception as e:
         error_msg = f"❌ خطای داخلی: {e}"
