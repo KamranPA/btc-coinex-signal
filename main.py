@@ -1,8 +1,8 @@
-# main.py - نسخه نهایی با interval صحیح
+# main.py - نسخه نهایی و تأیید شده
 import requests
 import os
 import calendar
-from datetime import datetime, timedelta
+from datetime import datetime
 import time
 
 # ———————————————————————
@@ -18,10 +18,9 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 # ———————————————————————
 COINEX_API = "https://api.coinex.com/v1/market/kline"
 MARKET = "BTCUSDT"
-INTERVAL = "1h"  # ✅ اصلاح شد: از "60" به "1h"
+INTERVAL = "1h"  # ✅ درست است
 
 def dt_to_timestamp(dt):
-    """تبدیل datetime به timestamp با فرض UTC"""
     return calendar.timegm(dt.utctimetuple())
 
 def send_telegram(message):
@@ -41,7 +40,7 @@ def send_telegram(message):
 def fetch_candles(start_time, end_time):
     params = {
         "market": MARKET,
-        "interval": INTERVAL,  # ✅ "1h"
+        "interval": INTERVAL,
         "start_at": start_time,
         "end_at": end_time,
         "limit": 100
@@ -105,7 +104,7 @@ def main():
         target_dt = target_dt.replace(hour=TARGET_HOUR, minute=0, second=0, microsecond=0)
 
         start_time = dt_to_timestamp(target_dt)
-        end_time = start_time + 3600
+        end_time = start_time + 3601  # ✅ حداقل 1 ثانیه بیشتر از یک ساعت
 
         print(f"هدف: {target_dt} -> start_at={start_time}, end_at={end_time}")
 
@@ -117,7 +116,7 @@ def main():
         target_candle = None
         for candle in candles:
             ts = int(candle[0])
-            if start_time <= ts < end_time:
+            if start_time <= ts < start_time + 3600:  # کندل دقیقاً در بازه 00:00 تا 01:00
                 target_candle = candle
                 break
 
