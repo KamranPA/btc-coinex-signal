@@ -1,60 +1,38 @@
-name: Run Divergence Bot (CoinEx - Public API)
+name: تحلیل کندل بیت‌کوین
 
 on:
   workflow_dispatch:
     inputs:
-      symbol:
-        description: 'Trading Pair (e.g. BTC/USDT)'
+      target_date:
+        type: string
+        description: 'تاریخ مورد نظر (فرمت: YYYY-MM-DD)'
+        default: '2025-08-26'
         required: true
-        default: 'BTC/USDT'
-      timeframe:
-        description: 'Timeframe (e.g. 1h, 4h, 1d)'
+      target_hour:
+        type: number
+        description: 'ساعت UTC (0-23)'
+        default: 0
         required: true
-        default: '1h'
-      start_date:
-        description: 'Start Date (YYYY-MM-DD)'
-        required: false
-        default: '2025-01-01'
-      end_date:
-        description: 'End Date (YYYY-MM-DD)'
-        required: false
-        default: '2025-04-05'
-      limit:
-        description: 'Number of candles (max 1000)'
-        required: true
-        default: '500'
 
 jobs:
-  run-bot:
+  analyze:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: کلون کردن ریپوزیتوری
+        uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: نصب پایتون
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+      - name: نصب وابستگی‌ها
+        run: pip install -r requirements.txt
 
-      - name: Run Bot (Public API)
+      - name: اجرای اسکریپت
         env:
-          SYMBOL: ${{ github.event.inputs.symbol }}
-          TIMEFRAME: ${{ github.event.inputs.timeframe }}
-          START_DATE: ${{ github.event.inputs.start_date }}
-          END_DATE: ${{ github.event.inputs.end_date }}
-          LIMIT: ${{ github.event.inputs.limit }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TARGET_DATE: ${{ github.event.inputs.target_date }}
+          TARGET_HOUR: ${{ github.event.inputs.target_hour }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
-
-      - name: Upload Logs
-        if: always()
-        uses: actions/upload-artifact@v4  # ✅ به‌روزرسانی به v4
-        with:
-          name: logs-${{ github.run_id }}
-          path: logs/
