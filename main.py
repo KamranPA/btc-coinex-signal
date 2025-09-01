@@ -1,9 +1,7 @@
-# main.py - نسخه نهایی و تأیید شده
+# main.py - نسخه نهایی با تست timestamp ثابت
 import requests
 import os
-import calendar
 from datetime import datetime
-import time
 
 # ———————————————————————
 # تنظیمات از متغیرهای محیطی
@@ -18,10 +16,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 # ———————————————————————
 COINEX_API = "https://api.coinex.com/v1/market/kline"
 MARKET = "BTCUSDT"
-INTERVAL = "1h"  # ✅ درست است
-
-def dt_to_timestamp(dt):
-    return calendar.timegm(dt.utctimetuple())
+INTERVAL = "1h"
 
 def send_telegram(message):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -100,13 +95,25 @@ def analyze_candle(candle):
 
 def main():
     try:
+        # تست با timestamp ثابت برای 26 آگوست 2025 00:00 UTC
         target_dt = datetime.strptime(TARGET_DATE, "%Y-%m-%d")
         target_dt = target_dt.replace(hour=TARGET_HOUR, minute=0, second=0, microsecond=0)
 
-        start_time = dt_to_timestamp(target_dt)
-        end_time = start_time + 3601  # ✅ حداقل 1 ثانیه بیشتر از یک ساعت
+        # ✅ محاسبه دقیق timestamp
+        start_time = int(target_dt.timestamp())
+        end_time = start_time + 3601  # حداقل 1 ثانیه بیشتر
 
-        print(f"هدف: {target_dt} -> start_at={start_time}, end_at={end_time}")
+        # ✅ تأیید: آیا timestamp درست است؟
+        print(f"تاریخ ورودی: {target_dt}")
+        print(f"start_time (UTC): {start_time} -> {datetime.utcfromtimestamp(start_time)}")
+        print(f"end_time (UTC): {end_time} -> {datetime.utcfromtimestamp(end_time)}")
+
+        # ✅ تست دستی برای 26 آگوست 2025 00:00 UTC
+        # این تاریخ باید به 1756185600 تبدیل شود
+        expected_start = 1756185600
+        if start_time != expected_start:
+            send_telegram(f"⚠️ تاریخ اشتباه محاسبه شد!\nمحاسبه شده: {start_time}\nدرست: {expected_start}")
+            return
 
         candles = fetch_candles(start_time, end_time)
         if not candles:
@@ -116,7 +123,7 @@ def main():
         target_candle = None
         for candle in candles:
             ts = int(candle[0])
-            if start_time <= ts < start_time + 3600:  # کندل دقیقاً در بازه 00:00 تا 01:00
+            if start_time <= ts < start_time + 3600:
                 target_candle = candle
                 break
 
