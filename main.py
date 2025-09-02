@@ -1,5 +1,7 @@
+# main.py - نسخه نهایی بدون dateutil و با os
+import requests
+import os
 from datetime import datetime, timezone
-from dateutil import parser
 
 # ———————————————————————
 # تنظیمات از متغیرهای محیطی
@@ -93,8 +95,8 @@ def analyze_candle(candle):
 
 def main():
     try:
-        # ✅ استفاده از dateutil برای تفسیر صحیح تاریخ
-        target_dt = parser.parse(TARGET_DATE, tzinfos={'UTC': timezone.utc})
+        # ✅ استفاده از datetime بدون timezone
+        target_dt = datetime.strptime(TARGET_DATE, "%Y-%m-%d")
         target_dt = target_dt.replace(hour=TARGET_HOUR, minute=0, second=0, microsecond=0)
 
         # ✅ محاسبه timestamp با timezone.utc
