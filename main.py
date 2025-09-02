@@ -1,7 +1,5 @@
-# main.py - نسخه نهایی با تأیید تاریخ
-import requests
-import os
 from datetime import datetime, timezone
+from dateutil import parser
 
 # ———————————————————————
 # تنظیمات از متغیرهای محیطی
@@ -95,11 +93,11 @@ def analyze_candle(candle):
 
 def main():
     try:
-        # محاسبه تاریخ
-        target_dt = datetime.strptime(TARGET_DATE, "%Y-%m-%d")
+        # ✅ استفاده از dateutil برای تفسیر صحیح تاریخ
+        target_dt = parser.parse(TARGET_DATE, tzinfos={'UTC': timezone.utc})
         target_dt = target_dt.replace(hour=TARGET_HOUR, minute=0, second=0, microsecond=0)
 
-        # محاسبه timestamp با timezone.utc
+        # ✅ محاسبه timestamp با timezone.utc
         start_time = int(target_dt.timestamp())
         end_time = start_time + 3601
 
