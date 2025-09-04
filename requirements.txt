@@ -2,5 +2,5 @@ ccxt
 pandas
 numpy
 python-telegram-bot
-python-dotenv (اختیاری برای مدیریت تنظیمات)
 ta
+python-dotenv
