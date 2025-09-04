@@ -1,2 +1,6 @@
-requests==2.31.0
-python-dateutil==2.9.0
+ccxt
+pandas
+numpy
+python-telegram-bot
+plotly (اختیاری برای نمایش)
+python-dotenv (اختیاری برای مدیریت تنظیمات)
