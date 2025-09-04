@@ -44,12 +44,15 @@ jobs:
 
       - name: Generate config.py
         env:
-          SYMBOL: ${{ replace(github.event.inputs.symbol, '-', '/') }}
+          SYMBOL: ${{ github.event.inputs.symbol }}
           TIMEFRAME: ${{ github.event.inputs.timeframe }}
           START_DATE: ${{ github.event.inputs.start_date }}
           END_DATE: ${{ github.event.inputs.end_date }}
         run: |
-          echo "SYMBOL = \"$SYMBOL\"" > config.py
+          # تبدیل BTC-USDT به BTC/USDT
+          FORMATTED_SYMBOL=$(echo "$SYMBOL" | sed 's/-/\//')
+          
+          echo "SYMBOL = \"$FORMATTED_SYMBOL\"" > config.py
           echo "TIMEFRAME = \"$TIMEFRAME\"" >> config.py
           echo "START_DATE = \"$START_DATE\"" >> config.py
           echo "END_DATE = \"$END_DATE\"" >> config.py
@@ -61,6 +64,9 @@ jobs:
           echo "STUNER = 10" >> config.py
           echo "MSTUNER = 8" >> config.py
           echo "FILTER_STYLE = \"Trending Signals [Mode]\"" >> config.py
+          
+          # نمایش محتوای فایل برای دیباگ
+          cat config.py
 
       - name: Run backtest
         env:
