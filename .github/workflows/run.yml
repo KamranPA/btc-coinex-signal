@@ -1,38 +1,83 @@
-name: تحلیل کندل بیت‌کوین
+name: Backtest Mutanabby_AI Strategy
 
 on:
   workflow_dispatch:
     inputs:
-      target_date:
-        type: string
-        description: 'تاریخ مورد نظر (فرمت: YYYY-MM-DD)'
-        default: '2025-08-26'
+      symbol:
+        description: 'نماد مورد نظر (مثلاً BTC-USDT)'
         required: true
-      target_hour:
-        type: number
-        description: 'ساعت UTC (0-23)'
-        default: 0
+        default: 'BTC-USDT'
+      timeframe:
+        description: 'تایم‌فریم (مثلاً 1h, 4h, 15m)'
         required: true
+        default: '1h'
+      start_date:
+        description: 'تاریخ شروع (فرمت: YYYY-MM-DD)'
+        required: true
+        default: '2024-01-01'
+      end_date:
+        description: 'تاریخ پایان (فرمت: YYYY-MM-DD)'
+        required: true
+        default: '2024-06-01'
 
 jobs:
-  analyze:
+  backtest:
     runs-on: ubuntu-latest
-    steps:
-      - name: کلون کردن ریپوزیتوری
-        uses: actions/checkout@v3
 
-      - name: نصب پایتون
-        uses: actions/setup-python@v4
+    steps:
+      # 1. کلون کردن ریپازیتوری
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 2. نصب پایتون
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
 
-      - name: نصب وابستگی‌ها
-        run: pip install -r requirements.txt
+      # 3. نصب وابستگی‌ها
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ccxt pandas numpy python-telegram-bot python-dotenv
 
-      - name: اجرای اسکریپت
+      # 4. ایجاد فایل تنظیمات با ورودی‌های کاربر
+      - name: Generate config.py
         env:
-          TARGET_DATE: ${{ github.event.inputs.target_date }}
-          TARGET_HOUR: ${{ github.event.inputs.target_hour }}
+          SYMBOL: ${{ format('{0}', replace(github.event.inputs.symbol, '-', '/')) }}
+          TIMEFRAME: ${{ github.event.inputs.timeframe }}
+          START_DATE: ${{ github.event.inputs.start_date }}
+          END_DATE: ${{ github.event.inputs.end_date }}
+        run: |
+          cat > config.py <<EOL
+# config.py - تنظیمات توسط GitHub Actions ایجاد شده
+SYMBOL = "$SYMBOL"
+TIMEFRAME = "$TIMEFRAME"
+START_DATE = "$START_DATE"
+END_DATE = "$END_DATE"
+
+# تنظیمات تلگرام (از Secrets گرفته می‌شود)
+TELEGRAM_TOKEN = "$TELEGRAM_TOKEN"
+TELEGRAM_CHAT_ID = "$TELEGRAM_CHAT_ID"
+
+# تنظیمات استراتژی (مطابق Pine Script)
+SENSITIVITY = 2.4
+STUNER = 10
+MSTUNER = 8
+FILTER_STYLE = "Trending Signals [Mode]"
+EOL
+
+      # 5. اجرای اسکریپت بک‌تست
+      - name: Run Backtest
+        env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python main.py
+
+      # 6. آپلود خروجی معاملات (اختیاری)
+      - name: Upload Trade Results
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trade-results-${{ github.run_id }}
+          path: results/trades.csv
