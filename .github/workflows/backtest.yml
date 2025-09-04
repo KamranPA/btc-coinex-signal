@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/sup-python@v5
         with:
           python-version: '3.10'
 
@@ -49,20 +49,18 @@ jobs:
           START_DATE: ${{ github.event.inputs.start_date }}
           END_DATE: ${{ github.event.inputs.end_date }}
         run: |
-          cat > config.py <<EOL
-SYMBOL = "\$SYMBOL"
-TIMEFRAME = "\$TIMEFRAME"
-START_DATE = "\$START_DATE"
-END_DATE = "\$END_DATE"
-
-TELEGRAM_TOKEN = "\$TELEGRAM_TOKEN"
-TELEGRAM_CHAT_ID = "\$TELEGRAM_CHAT_ID"
-
-SENSITIVITY = 2.4
-STUNER = 10
-MSTUNER = 8
-FILTER_STYLE = "Trending Signals [Mode]"
-EOL
+          echo "SYMBOL = \"$SYMBOL\"" > config.py
+          echo "TIMEFRAME = \"$TIMEFRAME\"" >> config.py
+          echo "START_DATE = \"$START_DATE\"" >> config.py
+          echo "END_DATE = \"$END_DATE\"" >> config.py
+          echo "" >> config.py
+          echo "TELEGRAM_TOKEN = \"\$TELEGRAM_TOKEN\"" >> config.py
+          echo "TELEGRAM_CHAT_ID = \"\$TELEGRAM_CHAT_ID\"" >> config.py
+          echo "" >> config.py
+          echo "SENSITIVITY = 2.4" >> config.py
+          echo "STUNER = 10" >> config.py
+          echo "MSTUNER = 8" >> config.py
+          echo "FILTER_STYLE = \"Trending Signals [Mode]\"" >> config.py
 
       - name: Run backtest
         env:
