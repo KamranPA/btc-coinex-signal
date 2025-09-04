@@ -40,33 +40,29 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install ccxt pandas numpy python-telegram-bot
+          pip install -r requirements.txt
 
       - name: Generate config.py
         env:
-          SYMBOL: ${{ github.event.inputs.symbol }}
+          SYMBOL: ${{ string.replace(github.event.inputs.symbol, '-', '/') }}
           TIMEFRAME: ${{ github.event.inputs.timeframe }}
           START_DATE: ${{ github.event.inputs.start_date }}
           END_DATE: ${{ github.event.inputs.end_date }}
         run: |
-          # تبدیل BTC-USDT به BTC/USDT
-          FORMATTED_SYMBOL=$(echo "$SYMBOL" | sed 's/-/\//')
-          
-          echo "SYMBOL = \"$FORMATTED_SYMBOL\"" > config.py
-          echo "TIMEFRAME = \"$TIMEFRAME\"" >> config.py
-          echo "START_DATE = \"$START_DATE\"" >> config.py
-          echo "END_DATE = \"$END_DATE\"" >> config.py
-          echo "" >> config.py
-          echo "TELEGRAM_TOKEN = \"\$TELEGRAM_TOKEN\"" >> config.py
-          echo "TELEGRAM_CHAT_ID = \"\$TELEGRAM_CHAT_ID\"" >> config.py
-          echo "" >> config.py
-          echo "SENSITIVITY = 2.4" >> config.py
-          echo "STUNER = 10" >> config.py
-          echo "MSTUNER = 8" >> config.py
-          echo "FILTER_STYLE = \"Trending Signals [Mode]\"" >> config.py
-          
-          # نمایش محتوای فایل برای دیباگ
-          cat config.py
+          cat > config.py <<EOL
+SYMBOL = "$SYMBOL"
+TIMEFRAME = "$TIMEFRAME"
+START_DATE = "$START_DATE"
+END_DATE = "$END_DATE"
+
+TELEGRAM_TOKEN = "$TELEGRAM_TOKEN"
+TELEGRAM_CHAT_ID = "$TELEGRAM_CHAT_ID"
+
+SENSITIVITY = 2.4
+STUNER = 10
+MSTUNER = 8
+FILTER_STYLE = "Trending Signals [Mode]"
+EOL
 
       - name: Run backtest
         env:
