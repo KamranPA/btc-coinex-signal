@@ -5,12 +5,15 @@ import ta
 from datetime import datetime
 
 def apply_strategy(df, config):
-    # محاسبه EMA
-    df['ema150'] = ta.trend.ema_indicator(df['close'], 150)
-    df['ema250'] = ta.trend.ema_indicator(df['close'], 250)
-    df['hma55'] = ta.trend.hma_indicator(df['close'], 55)
+    """
+    اعمال استراتژی Mutanabby_AI | Fresh Algo V24 بر روی داده‌های قیمت
+    """
+    # محاسبه EMA ها
+    df['ema150'] = ta.trend.ema_indicator(df['close'], window=150)
+    df['ema250'] = ta.trend.ema_indicator(df['close'], window=250)
+    df['hma55'] = ta.trend.hma_indicator(df['close'], window=55)
 
-    # Supertrend (باید دقیق شبیه Pine Script باشد)
+    # Supertrend
     def supertrend(close, high, low, sensitivity, period):
         atr = ta.volatility.average_true_range(high, low, close, period)
         upper_band = (high + low) / 2 + sensitivity * atr
@@ -45,8 +48,7 @@ def apply_strategy(df, config):
     df['macd_hist'] = macd.macd_diff()
 
     # DMI/ADX (برای تشخیص روند)
-    dmi = ta.trend.ADIIndicator(df['high'], df['low'], df['close'])
-    df['adx'] = ta.trend.adx(df['high'], df['low'], df['close'], 14)
+    df['adx'] = ta.trend.adx(df['high'], df['low'], df['close'], window=14)
 
     # WaveTrend (ساده‌شده)
     def wavetrend(src, chl_len, avg_len):
@@ -77,9 +79,9 @@ def apply_strategy(df, config):
          (df['ema150'] < df['ema250']) & (df['hma55'] < df['hma55'].shift(2)) & (df['adx'] > 20))
     )
 
-    # فیلترهای اضافی (مثلاً Strong Filter)
+    # فیلترهای اضافی
     strong_filter = ta.trend.ema_indicator(df['close'], 200)
-    df['bull_signal'] = df['confBull'] & (df['close'] > strong_filter)
-    df['bear_signal'] = df['confBear'] & (df['close'] < strong_filter)
+    df['bull_signal'] = df['confBull'] & (config.FILTER_STYLE != "Strong [Filter]" or df['close'] > strong_filter)
+    df['bear_signal'] = df['confBear'] & (config.FILTER_STYLE != "Strong [Filter]" or df['close'] < strong_filter)
 
     return df
