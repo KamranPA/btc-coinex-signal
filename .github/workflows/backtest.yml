@@ -4,25 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       symbol:
-        type: string
-        description: Symbol (e.g., BTC-USDT)
+        description: "Symbol (e.g., BTC-USDT)"
         required: true
-        default: BTC-USDT
+        default: "BTC-USDT"
       timeframe:
-        type: string
-        description: Timeframe (e.g., 1h, 15m)
+        description: "Timeframe (e.g., 1h, 15m)"
         required: true
-        default: 1h
+        default: "1h"
       start_date:
-        type: string
-        description: Start date (YYYY-MM-DD)
+        description: "Start date (YYYY-MM-DD)"
         required: true
-        default: 2024-01-01
+        default: "2024-01-01"
       end_date:
-        type: string
-        description: End date (YYYY-MM-DD)
+        description: "End date (YYYY-MM-DD)"
         required: true
-        default: 2024-06-01
+        default: "2024-06-01"
 
 jobs:
   backtest:
@@ -44,10 +40,10 @@ jobs:
 
       - name: Generate config.py
         env:
-          SYMBOL: ${{ replace(github.event.inputs.symbol, '-', '/') }}
-          TIMEFRAME: ${{ github.event.inputs.timeframe }}
-          START_DATE: ${{ github.event.inputs.start_date }}
-          END_DATE: ${{ github.event.inputs.end_date }}
+          SYMBOL: ${{ replace(inputs.symbol, '-', '/') }}
+          TIMEFRAME: ${{ inputs.timeframe }}
+          START_DATE: ${{ inputs.start_date }}
+          END_DATE: ${{ inputs.end_date }}
         run: |
           cat > config.py <<EOL
 SYMBOL = "$SYMBOL"
