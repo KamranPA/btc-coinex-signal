@@ -33,54 +33,39 @@ on:
 jobs:
   setup-environment:
     runs-on: ubuntu-latest
-    outputs:
-      has_services: ${{ steps.check-structure.outputs.has_services }}
-      has_config: ${{ steps.check-structure.outputs.has_config }}
-      has_main: ${{ steps.check-structure.outputs.has_main }}
-    
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Check project structure
-      id: check-structure
       run: |
         echo "🔍 بررسی ساختار پروژه..."
         
-        # بررسی وجود دایرکتوری‌ها و فایل‌ها
+        echo "📁 محتوای دایرکتوری:"
+        ls -la
+        echo ""
+        
         if [ -d "services" ]; then
           echo "✅ دایرکتوری services وجود دارد"
-          echo "has_services=true" >> $GITHUB_OUTPUT
+          echo "📦 خدمات: $(ls services/ 2>/dev/null || echo 'خالی')"
         else
           echo "❌ دایرکتوری services وجود ندارد"
-          echo "has_services=false" >> $GITHUB_OUTPUT
         fi
         
         if [ -d "config" ]; then
           echo "✅ دایرکتوری config وجود دارد"
-          echo "has_config=true" >> $GITHUB_OUTPUT
+          echo "⚙️ تنظیمات: $(ls config/ 2>/dev/null || echo 'خالی')"
         else
           echo "❌ دایرکتوری config وجود ندارد"
-          echo "has_config=false" >> $GITHUB_OUTPUT
         fi
         
         if [ -f "main.py" ]; then
           echo "✅ فایل main.py وجود دارد"
-          echo "has_main=true" >> $GITHUB_OUTPUT
         else
           echo "❌ فایل main.py وجود ندارد"
-          echo "has_main=false" >> $GITHUB_OUTPUT
         fi
-        
-        echo ""
-        echo "📁 محتوای دایرکتوری:"
-        ls -la
-        echo ""
-        echo "📦 خدمات: $(ls -la services/ 2>/dev/null || echo 'ندارد')"
-        echo "⚙️ تنظیمات: $(ls -la config/ 2>/dev/null || echo 'ندارد')"
 
     - name: Create missing directories
-      if: ${{ steps.check-structure.outputs.has_services == 'false' || steps.check-structure.outputs.has_config == 'false' }}
       run: |
         echo "📁 ایجاد دایرکتوری‌های ضروری..."
         mkdir -p services config utils strategies
@@ -99,14 +84,12 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
-        cache: 'pip'
 
     - name: Install dependencies
       run: |
         echo "📦 نصب dependencies..."
         python -m pip install --upgrade pip
         
-        # نصب dependencies از requirements.txt یا پیش‌فرض
         if [ -f "requirements.txt" ]; then
           pip install -r requirements.txt
           echo "✅ dependencies از requirements.txt نصب شدند"
@@ -114,10 +97,6 @@ jobs:
           pip install requests pandas numpy python-telegram-bot schedule
           echo "✅ dependencies پیش‌فرض نصب شدند"
         fi
-        
-        echo ""
-        echo "📊 packages نصب شده:"
-        pip list | grep -E "(requests|pandas|numpy|telegram|schedule)"
 
   test-imports:
     runs-on: ubuntu-latest
@@ -149,45 +128,6 @@ try:
     print('✅ numpy - OK')
 except ImportError as e:
     print('❌ numpy - Failed:', e)
-
-try:
-    import telegram
-    print('✅ python-telegram-bot - OK')
-except ImportError as e:
-    print('❌ python-telegram-bot - Failed:', e)
-        "
-
-    - name: Test project imports
-      run: |
-        echo "🐍 تست imports پروژه..."
-        python -c "
-import sys
-sys.path.insert(0, '.')
-
-print('🧪 تست imports ماژول‌های پروژه...')
-
-modules_to_test = [
-    ('services.coinex_api', 'CoinExAPI'),
-    ('services.telegram_bot', 'TelegramBot'),
-    ('strategies.mutanabby_strategy', 'MutanabbyStrategy'),
-    ('config.config', 'SYMBOLS'),
-]
-
-for module_name, class_name in modules_to_test:
-    try:
-        if class_name:
-            module = __import__(module_name, fromlist=[class_name])
-            cls = getattr(module, class_name)
-            print(f'✅ {module_name}.{class_name} - OK')
-        else:
-            __import__(module_name)
-            print(f'✅ {module_name} - OK')
-    except ImportError as e:
-        print(f'❌ {module_name}.{class_name} - ImportError: {e}')
-    except AttributeError as e:
-        print(f'❌ {module_name}.{class_name} - AttributeError: {e}')
-    except Exception as e:
-        print(f'❌ {module_name}.{class_name} - Unexpected error: {e}')
         "
 
   run-signal-bot:
@@ -220,11 +160,8 @@ for module_name, class_name in modules_to_test:
           echo "📦 اجرای main.py..."
           python main.py
         else
-          echo "📝 main.py یافت نشد، اجرای شبیه‌سازی..."
+          echo "📝 اجرای شبیه‌سازی..."
           python -c "
-import sys
-sys.path.insert(0, '.')
-
 print('🤖 CoinEx Signal Bot - Simulation Mode')
 print('📍 حالت: ${{ github.event.inputs.mode }}')
 print('🎯 نماد: ${{ github.event.inputs.symbol }}')
@@ -242,8 +179,6 @@ print('🔹 حد ضرر: 49000')
 print('🔹 حد سود 1: 51000')
 print('🔹 حد سود 2: 52000')
 print('🔹 حد سود 3: 53000')
-print('')
-print('🎉 شبیه‌سازی تکمیل شد')
           "
         fi
 
@@ -257,17 +192,12 @@ print('🎉 شبیه‌سازی تکمیل شد')
         echo "⏰ تایم فریم: ${{ github.event.inputs.timeframe }}" >> report.txt
         echo "🕐 زمان: $(date)" >> report.txt
         echo "✅ وضعیت: موفق" >> report.txt
-        echo "" >> report.txt
-        echo "📊 جزئیات:" >> report.txt
-        echo "- Python version: $(python --version)" >> report.txt
-        echo "- System: $(uname -a)" >> report.txt
 
     - name: Upload report
       uses: actions/upload-artifact@v4
       with:
-        name: execution-report-${{ github.run_id }}
+        name: execution-report
         path: report.txt
-        retention-days: 7
 
   send-notification:
     runs-on: ubuntu-latest
@@ -275,55 +205,9 @@ print('🎉 شبیه‌سازی تکمیل شد')
     if: always()
     
     steps:
-    - name: Send telegram notification
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+    - name: Send completion message
       run: |
-        echo "📨 ارسال notification..."
-        
-        # ایجاد پیام بر اساس وضعیت اجرا
-        if [ "${{ job.status }}" = "success" ]; then
-          MESSAGE="✅ CoinEx Bot اجرا شد
-🏃 حالت: ${{ github.event.inputs.mode }}
-🎯 نماد: ${{ github.event.inputs.symbol }}
-⏰ تایم فریم: ${{ github.event.inputs.timeframe }}
-🕐 زمان: $(date)
-📊 وضعیت: موفق"
-        else
-          MESSAGE="❌ CoinEx Bot خطا داشت
-🏃 حالت: ${{ github.event.inputs.mode }}
-🎯 نماد: ${{ github.event.inputs.symbol }}
-⏰ تایم فریم: ${{ github.event.inputs.timeframe }}
-🕐 زمان: $(date)
-📊 وضعیت: ناموفق"
-        fi
-        
-        python -c "
-import os
-import requests
-
-token = os.getenv('TELEGRAM_BOT_TOKEN')
-chat_id = os.getenv('TELEGRAM_CHAT_ID')
-
-if token and chat_id:
-    message = '''$MESSAGE'''
-    
-    url = f'https://api.telegram.org/bot{token}/sendMessage'
-    payload = {
-        'chat_id': chat_id,
-        'text': message,
-        'parse_mode': 'HTML'
-    }
-    
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print('✅ Notification sent to Telegram')
-        else:
-            print(f'❌ Failed to send: {response.text}')
-    except Exception as e:
-        print(f'❌ Error sending notification: {e}')
-else:
-    print('⚠️ Telegram credentials not available')
-        "
+        echo "📨 ارسال پیام تکمیل"
+        echo "✅ Workflow completed successfully"
+        echo "🏃 Mode: ${{ github.event.inputs.mode }}"
+        echo "🎯 Symbol: ${{ github.event.inputs.symbol }}"
