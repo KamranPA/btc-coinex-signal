@@ -35,24 +35,68 @@ jobs:
         pip install -r requirements.txt
         pip install requests python-dotenv ta-lib
 
-    - name: Analyze classes methods
+    - name: Debug strategy execution
       run: |
-        echo "=== Analyzing Class Methods ==="
+        echo "=== Debugging Strategy Execution ==="
         
-        echo "TelegramBot methods:"
-        if [ -f "services/telegram_bot.py" ]; then
-            grep -n "def " services/telegram_bot.py
-        else
-            echo "telegram_bot.py not found"
-        fi
+        # ایجاد یک اسکریپت دیباگ برای استراتژی
+        echo "#!/usr/bin/env python3" > debug_strategy.py
+        echo "import logging" >> debug_strategy.py
+        echo "logging.basicConfig(level=logging.INFO)" >> debug_strategy.py
+        echo "logger = logging.getLogger(__name__)" >> debug_strategy.py
+        echo "" >> debug_strategy.py
+        echo "def debug_strategy():" >> debug_strategy.py
+        echo "    try:" >> debug_strategy.py
+        echo "        from services.coinex_api import CoinExAPI" >> debug_strategy.py
+        echo "        from strategies.mutanabby_strategy import MutanabbyStrategy" >> debug_strategy.py
+        echo "" >> debug_strategy.py
+        echo "        api = CoinExAPI()" >> debug_strategy.py
+        echo "        " >> debug_strategy.py
+        echo "        # تست دریافت داده از API" >> debug_strategy.py
+        echo "        logger.info(\"Testing API data retrieval...\")" >> debug_strategy.py
+        echo "        market_data = api.get_market_data('BTCUSDT')" >> debug_strategy.py
+        echo "        logger.info(f\"Market data: {market_data}\")" >> debug_strategy.py
+        echo "" >> debug_strategy.py
+        echo "        # تست استراتژی" >> debug_strategy.py
+        echo "        logger.info(\"Testing strategy...\")" >> debug_strategy.py
+        echo "        " >> debug_strategy.py
+        echo "        # سعی کنیم استراتژی را با پارامترهای مختلف initialize کنیم" >> debug_strategy.py
+        echo "        try:" >> debug_strategy.py
+        echo "            strategy = MutanabbyStrategy(api)" >> debug_strategy.py
+        echo "            logger.info(\"Strategy initialized with API\")" >> debug_strategy.py
+        echo "        except TypeError as e:" >> debug_strategy.py
+        echo "            logger.warning(f\"Strategy with API failed: {e}\")" >> debug_strategy.py
+        echo "            strategy = MutanabbyStrategy()" >> debug_strategy.py
+        echo "            logger.info(\"Strategy initialized without API\")" >> debug_strategy.py
+        echo "" >> debug_strategy.py
+        echo "        # تست تمام متدهای ممکن" >> debug_strategy.py
+        echo "        methods = ['generate_signals', 'execute', 'run', 'analyze', 'get_signals']" >> debug_strategy.py
+        echo "        for method_name in methods:" >> debug_strategy.py
+        echo "            if hasattr(strategy, method_name):" >> debug_strategy.py
+                echo "                logger.info(f\"Testing method: {method_name}\")" >> debug_strategy.py
+        echo "                method = getattr(strategy, method_name)" >> debug_strategy.py
+        echo "                " >> debug_strategy.py
+        echo "                # اگر متد نیاز به پارامتر دارد" >> debug_strategy.py
+        echo "                if method_name == 'generate_signals':" >> debug_strategy.py
+        echo "                    result = method(market_data)" >> debug_strategy.py
+        echo "                else:" >> debug_strategy.py
+        echo "                    result = method()" >> debug_strategy.py
+        echo "                " >> debug_strategy.py
+        echo "                logger.info(f\"Method {method_name} result: {result}\")" >> debug_strategy.py
+        echo "                " >> debug_strategy.py
+        echo "        return True" >> debug_strategy.py
+        echo "    " >> debug_strategy.py
+        echo "    except Exception as e:" >> debug_strategy.py
+        echo "        logger.error(f\"Error in debug: {e}\")" >> debug_strategy.py
+        echo "        import traceback" >> debug_strategy.py
+        echo "        logger.error(traceback.format_exc())" >> debug_strategy.py
+        echo "        return False" >> debug_strategy.py
+        echo "" >> debug_strategy.py
+        echo "if __name__ == \"__main__\":" >> debug_strategy.py
+        echo "    debug_strategy()" >> debug_strategy.py
         
-        echo ""
-        echo "MutanabbyStrategy methods:"
-        if [ -f "strategies/mutanabby_strategy.py" ]; then
-            grep -n "def " strategies/mutanabby_strategy.py
-        else
-            echo "mutanabby_strategy.py not found"
-        fi
+        echo "Running strategy debug..."
+        python debug_strategy.py
 
     - name: Create production main.py
       run: |
@@ -91,37 +135,37 @@ jobs:
         echo "" >> main.py
         echo "        logger.info(\"✅ All components initialized\")" >> main.py
         echo "" >> main.py
-        echo "        # Execute strategy - try different approaches" >> main.py
+        echo "        # Execute strategy - ONLY use real methods" >> main.py
         echo "        logger.info(\"🔍 Analyzing market conditions...\")" >> main.py
         echo "        " >> main.py
         echo "        signals = None" >> main.py
         echo "        " >> main.py
-        echo "        # Try method with data parameter" >> main.py
+        echo "        # Try to get REAL signals first" >> main.py
+        echo "        market_data = api.get_market_data('BTCUSDT')" >> main.py
+        echo "        " >> main.py
         echo "        if hasattr(strategy, 'generate_signals'):" >> main.py
         echo "            try:" >> main.py
-        echo "                # Get market data first" >> main.py
-        echo "                market_data = api.get_market_data('BTCUSDT')" >> main.py
         echo "                signals = strategy.generate_signals(market_data)" >> main.py
-        echo "                logger.info(\"✅ generate_signals with data executed\")" >> main.py
+        echo "                logger.info(\"✅ Real generate_signals executed\")" >> main.py
         echo "            except Exception as e:" >> main.py
-        echo "                logger.warning(f\"⚠ generate_signals with data failed: {e}\")" >> main.py
+        echo "                logger.warning(f\"⚠ generate_signals failed: {e}\")" >> main.py
         echo "        " >> main.py
-        echo "        # Try other methods if still no signals" >> main.py
+        echo "        # Try other real methods" >> main.py
         echo "        if signals is None:" >> main.py
-        echo "            method_names = ['execute', 'run', 'analyze', 'get_signals']" >> main.py
-        echo "            for method_name in method_names:" >> main.py
+        echo "            real_methods = ['execute', 'run', 'analyze', 'get_signals']" >> main.py
+        echo "            for method_name in real_methods:" >> main.py
         echo "                if hasattr(strategy, method_name):" >> main.py
         echo "                    try:" >> main.py
         echo "                        method = getattr(strategy, method_name)" >> main.py
         echo "                        signals = method()" >> main.py
-        echo "                        logger.info(f\"✅ Executed method: {method_name}\")" >> main.py
-                        echo "                        break" >> main.py
+        echo "                        logger.info(f\"✅ Real method executed: {method_name}\")" >> main.py
+        echo "                        break" >> main.py
         echo "                    except Exception as e:" >> main.py
         echo "                        logger.warning(f\"⚠ Method {method_name} failed: {e}\")" >> main.py
         echo "        " >> main.py
-        echo "        if signals is None:" >> main.py
-        echo "            # اگر هیچ متدی کار نکرد، سیگنال تست ایجاد کنیم" >> main.py
-        echo "            logger.warning(\"⚠ No working method found, creating test signal\")" >> main.py
+        echo "        # ONLY create test signal if in test mode" >> main.py
+        echo "        if signals is None and '--test' in sys.argv:" >> main.py
+        echo "            logger.warning(\"⚠ No real signals found, creating TEST signal\")" >> main.py
         echo "            signals = [" >> main.py
         echo "                {" >> main.py
         echo "                    'symbol': 'BTCUSDT'," >> main.py
@@ -129,14 +173,17 @@ jobs:
         echo "                    'price': 50000," >> main.py
         echo "                    'timestamp': datetime.now().isoformat()," >> main.py
         echo "                    'confidence': 0.8," >> main.py
-        echo "                    'message': 'Test signal - Bullish pattern detected'" >> main.py
+        echo "                    'message': 'TEST SIGNAL - Bullish pattern detected'" >> main.py
         echo "                }" >> main.py
         echo "            ]" >> main.py
+        echo "        elif signals is None:" >> main.py
+        echo "            logger.info(\"📭 No signals found\")" >> main.py
+        echo "            return True" >> main.py
         echo "" >> main.py
         echo "        if signals and len(signals) > 0:" >> main.py
         echo "            logger.info(f\"🎯 Found {len(signals)} signals\")" >> main.py
         echo "            " >> main.py
-        echo "            # Send signals via Telegram - try different method names" >> main.py
+        echo "            # Send signals via Telegram" >> main.py
         echo "            if '--test' not in sys.argv:" >> main.py
         echo "                telegram_methods = ['send_signals', 'send_message', 'send_signal', 'notify']" >> main.py
         echo "                sent = False" >> main.py
@@ -188,10 +235,10 @@ jobs:
         echo "Test Mode: $TEST_MODE"
         
         if [ "$TEST_MODE" = "true" ]; then
-            echo "🟡 Running in TEST mode - No real signals will be sent"
+            echo "🟡 Running in TEST mode - Test signals will be created but not sent"
             python main.py --test
         else
-            echo "🟢 Running in PRODUCTION mode - Real signals will be sent"
+            echo "🟢 Running in PRODUCTION mode - Only real signals will be processed"
             python main.py
         fi
 
