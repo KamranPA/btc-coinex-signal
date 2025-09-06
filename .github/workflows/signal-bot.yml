@@ -1,22 +1,37 @@
-name: CoinEx Signal Bot
+name: CoinEx Bot with Inputs
 
 on:
   workflow_dispatch:
+    inputs:
+      symbol:
+        description: 'Trading Symbol'
+        required: false
+        default: 'BTCUSDT'
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-
-      - name: Run simple test
+      - name: Show inputs
         run: |
-          echo "🤖 CoinEx Bot Started"
-          echo "✅ Workflow is working"
-          python -c "print('Python is ready!')"
+          echo "Symbol: ${{ github.event.inputs.symbol }}"
+          echo "🤖 Bot is running!"
+
+      - name: Test Python
+        run: |
+          python -c "
+print('Testing imports...')
+try:
+    import requests
+    print('✅ requests OK')
+except:
+    print('❌ requests missing')
+try:
+    import pandas
+    print('✅ pandas OK') 
+except:
+    print('❌ pandas missing')
+          "
