@@ -55,7 +55,6 @@ jobs:
       run: |
         echo "=== Fixing debug_service Import Issue ==="
         
-        # بررسی ساختار پوشه services/debug_service
         echo "Services directory content:"
         ls -la services/
         
@@ -63,7 +62,6 @@ jobs:
             echo "debug_service is a directory, checking its content:"
             ls -la services/debug_service/
             
-            # اگر پوشه خالی است یا فایل اصلی ندارد، ایجاد کنیم
             if [ ! -f "services/debug_service/__init__.py" ]; then
                 echo "Creating __init__.py in debug_service directory"
                 echo "# debug_service package" > services/debug_service/__init__.py
@@ -93,10 +91,8 @@ jobs:
         echo "=== Removing debug_service imports from main.py ==="
         
         if [ -f "main.py" ]; then
-            # ایجاد backup
             cp main.py main.py.backup2
             
-            # حذف خطوط مربوط به debug_service
             grep -v "debug_service" main.py > main.py.temp
             mv main.py.temp main.py
             
@@ -111,75 +107,71 @@ jobs:
       run: |
         echo "=== Creating Simplified Main.py ==="
         
-        # ایجاد یک main.py ساده و تمیز
-        cat > main_simple.py << 'EOL'
-#!/usr/bin/env python3
-import json
-import os
-import sys
-import logging
-from datetime import datetime
+        echo "#!/usr/bin/env python3" > main_simple.py
+        echo "import json" >> main_simple.py
+        echo "import os" >> main_simple.py
+        echo "import sys" >> main_simple.py
+        echo "import logging" >> main_simple.py
+        echo "from datetime import datetime" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "# Setup logging" >> main_simple.py
+        echo "logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')" >> main_simple.py
+        echo "logger = logging.getLogger(__name__)" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "def main():" >> main_simple.py
+        echo "    try:" >> main_simple.py
+        echo "        logger.info(f\"Signal Bot started at {datetime.now()}\")" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "        # تست ایمپورت‌های اصلی" >> main_simple.py
+        echo "        try:" >> main_simple.py
+        echo "            from services.coinex_api import CoinExAPI" >> main_simple.py
+        echo "            logger.info(\"✓ CoinExAPI imported successfully\")" >> main_simple.py
+        echo "        except ImportError as e:" >> main_simple.py
+        echo "            logger.error(f\"✗ CoinExAPI import failed: {e}\")" >> main_simple.py
+        echo "            return False" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "        try:" >> main_simple.py
+        echo "            from services.telegram_bot import TelegramBot" >> main_simple.py
+        echo "            logger.info(\"✓ TelegramBot imported successfully\")" >> main_simple.py
+        echo "        except ImportError as e:" >> main_simple.py
+        echo "            logger.error(f\"✗ TelegramBot import failed: {e}\")" >> main_simple.py
+        echo "            return False" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "        try:" >> main_simple.py
+        echo "            from strategies.mutanabby_strategy import MutanabbyStrategy" >> main_simple.py
+        echo "            logger.info(\"✓ MutanabbyStrategy imported successfully\")" >> main_simple.py
+        echo "        except ImportError as e:" >> main_simple.py
+        echo "            logger.error(f\"✗ MutanabbyStrategy import failed: {e}\")" >> main_simple.py
+        echo "            return False" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "        # Initialize components" >> main_simple.py
+        echo "        api = CoinExAPI()" >> main_simple.py
+        echo "        telegram_bot = TelegramBot()" >> main_simple.py
+        echo "        strategy = MutanabbyStrategy()" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "        logger.info(\"All components initialized successfully\")" >> main_simple.py
+        echo "        logger.info(\"Basic functionality test completed\")" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "        return True" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "    except Exception as e:" >> main_simple.py
+        echo "        logger.error(f\"Error in main execution: {e}\")" >> main_simple.py
+        echo "        import traceback" >> main_simple.py
+        echo "        logger.error(traceback.format_exc())" >> main_simple.py
+        echo "        return False" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "if __name__ == \"__main__\":" >> main_simple.py
+        echo "    if '--test' in sys.argv or '--debug' in sys.argv:" >> main_simple.py
+        echo "        logger.info(\"Running in test/debug mode\")" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "    success = main()" >> main_simple.py
+        echo "    if success:" >> main_simple.py
+        echo "        logger.info(\"Execution completed successfully\")" >> main_simple.py
+        echo "    else:" >> main_simple.py
+        echo "        logger.error(\"Execution failed\")" >> main_simple.py
+        echo "" >> main_simple.py
+        echo "    sys.exit(0 if success else 1)" >> main_simple.py
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
-
-def main():
-    try:
-        logger.info(f"Signal Bot started at {datetime.now()}")
-        
-        # تست ایمپورت‌های اصلی
-        try:
-            from services.coinex_api import CoinExAPI
-            logger.info("✓ CoinExAPI imported successfully")
-        except ImportError as e:
-            logger.error(f"✗ CoinExAPI import failed: {e}")
-            return False
-            
-        try:
-            from services.telegram_bot import TelegramBot
-            logger.info("✓ TelegramBot imported successfully")
-        except ImportError as e:
-            logger.error(f"✗ TelegramBot import failed: {e}")
-            return False
-            
-        try:
-            from strategies.mutanabby_strategy import MutanabbyStrategy
-            logger.info("✓ MutanabbyStrategy imported successfully")
-        except ImportError as e:
-            logger.error(f"✗ MutanabbyStrategy import failed: {e}")
-            return False
-        
-        # Initialize components
-        api = CoinExAPI()
-        telegram_bot = TelegramBot()
-        strategy = MutanabbyStrategy()
-        
-        logger.info("All components initialized successfully")
-        logger.info("Basic functionality test completed")
-        
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error in main execution: {e}")
-        import traceback
-        logger.error(traceback.format_exc())
-        return False
-
-if __name__ == "__main__":
-    if '--test' in sys.argv or '--debug' in sys.argv:
-        logger.info("Running in test/debug mode")
-    
-    success = main()
-    if success:
-        logger.info("Execution completed successfully")
-    else:
-        logger.error("Execution failed")
-    
-    sys.exit(0 if success else 1)
-EOL
-
-        # جایگزینی main.py با نسخه ساده شده
         mv main_simple.py main.py
         echo "Created simplified main.py"
 
@@ -259,60 +251,68 @@ EOL
         
         mkdir -p .github/scripts
         
-        cat > .github/scripts/notify.py << 'EOL'
-import requests
-import os
-from datetime import datetime
-
-def send_notification():
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    
-    if not token or not chat_id:
-        print("Telegram credentials missing")
-        return False
-    
-    workflow = os.getenv('GITHUB_WORKFLOW', 'Unknown')
-    run_id = os.getenv('GITHUB_RUN_ID', 'Unknown')
-    repo = os.getenv('GITHUB_REPOSITORY', 'Unknown')
-    
-    message = f"""
-🔄 <b>Workflow Completed</b>
-
-📊 <b>Workflow:</b> {workflow}
-🏷️ <b>Run ID:</b> #{run_id}
-📁 <b>Repository:</b> {repo}
-⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-✅ <b>Status:</b> Success
-
-🔗 <a href="https://github.com/{repo}/actions/runs/{run_id}">View Details</a>
-    """
-    
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        'chat_id': chat_id,
-        'text': message,
-        'parse_mode': 'HTML',
-        'disable_web_page_preview': True
-    }
-    
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print("Notification sent successfully")
-            return True
-        else:
-            print(f"Failed to send notification: {response.text}")
-            return False
-    except Exception as e:
-        print(f"Error sending notification: {e}")
-        return False
-
-if __name__ == "__main__":
-    send_notification()
-EOL
-
+        echo "import requests" > .github/scripts/notify.py
+        echo "import os" >> .github/scripts/notify.py
+        echo "from datetime import datetime" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "def send_notification():" >> .github/scripts/notify.py
+        echo "    token = os.getenv('TELEGRAM_BOT_TOKEN')" >> .github/scripts/notify.py
+        echo "    chat_id = os.getenv('TELEGRAM_CHAT_ID')" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "    if not token or not chat_id:" >> .github/scripts/notify.py
+        echo "        print(\"Telegram credentials missing\")" >> .github/scripts/notify.py
+        echo "        return False" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "    workflow = os.getenv('GITHUB_WORKFLOW', 'Unknown')" >> .github/scripts/notify.py
+        echo "    run_id = os.getenv('GITHUB_RUN_ID', 'Unknown')" >> .github/scripts/notify.py
+        echo "    repo = os.getenv('GITHUB_REPOSITORY', 'Unknown')" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "    message = f\"\"\"" >> .github/scripts/notify.py
+        echo "🔄 <b>Workflow Completed</b>" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "📊 <b>Workflow:</b> {workflow}" >> .github/scripts/notify.py
+        echo "🏷️ <b>Run ID:</b> #{run_id}" >> .github/scripts/notify.py
+        echo "📁 <b>Repository:</b> {repo}" >> .github/scripts/notify.py
+        echo "⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}" >> .github/scripts/notify.py
+        echo "✅ <b>Status:</b> Success" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "🔗 <a href=\\\"https://github.com/{repo}/actions/runs/{run_id}\\\">View Details</a>" >> .github/scripts/notify.py
+        echo "    \"\"\"" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "    url = f\"https://api.telegram.org/bot{token}/sendMessage\"" >> .github/scripts/notify.py
+        echo "    payload = {" >> .github/scripts/notify.py
+        echo "        'chat_id': chat_id," >> .github/scripts/notify.py
+        echo "        'text': message," >> .github/scripts/notify.py
+        echo "        'parse_mode': 'HTML'," >> .github/scripts/notify.py
+        echo "        'disable_web_page_preview': True" >> .github/scripts/notify.py
+        echo "    }" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "    try:" >> .github/scripts/notify.py
+        echo "        response = requests.post(url, json=payload, timeout=10)" >> .github/scripts/notify.py
+        echo "        if response.status_code == 200:" >> .github/scripts/notify.py
+        echo "            print(\"Notification sent successfully\")" >> .github/scripts/notify.py
+        echo "            return True" >> .github/scripts/notify.py
+        echo "        else:" >> .github/scripts/notify.py
+        echo "            print(f\"Failed to send notification: {response.text}\")" >> .github/scripts/notify.py
+        echo "            return False" >> .github/scripts/notify.py
+        echo "    except Exception as e:" >> .github/scripts/notify.py
+        echo "        print(f\"Error sending notification: {e}\")" >> .github/scripts/notify.py
+        echo "        return False" >> .github/scripts/notify.py
+        echo "" >> .github/scripts/notify.py
+        echo "if __name__ == \"__main__\":" >> .github/scripts/notify.py
+        echo "    send_notification()" >> .github/scripts/notify.py
+        
         python .github/scripts/notify.py
+
+    - name: Upload debug reports
+      if: always() && (github.event.inputs.debug_mode == 'true' || github.event.inputs.comprehensive_test == 'true')
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-reports-${{ github.run_id }}
+        path: |
+          debug/
+          logs/
+        retention-days: 7
 
   cleanup:
     runs-on: ubuntu-latest
