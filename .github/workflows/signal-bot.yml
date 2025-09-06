@@ -1,37 +1,26 @@
-name: CoinEx Bot with Inputs
+name: CoinEx Structure Check
 
 on:
   workflow_dispatch:
-    inputs:
-      symbol:
-        description: 'Trading Symbol'
-        required: false
-        default: 'BTCUSDT'
 
 jobs:
-  run-bot:
+  check-structure:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show inputs
+      - name: List files
         run: |
-          echo "Symbol: ${{ github.event.inputs.symbol }}"
-          echo "🤖 Bot is running!"
-
-      - name: Test Python
-        run: |
-          python -c "
-print('Testing imports...')
-try:
-    import requests
-    print('✅ requests OK')
-except:
-    print('❌ requests missing')
-try:
-    import pandas
-    print('✅ pandas OK') 
-except:
-    print('❌ pandas missing')
-          "
+          echo "📁 Project Structure:"
+          echo "===================="
+          ls -la
+          echo ""
+          echo "📦 Services:"
+          ls -la services/ 2>/dev/null || echo "No services directory"
+          echo ""
+          echo "⚙️ Config:"
+          ls -la config/ 2>/dev/null || echo "No config directory"
+          echo ""
+          echo "🐍 Python files:"
+          find . -name "*.py" | head -10
