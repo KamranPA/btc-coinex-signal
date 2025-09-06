@@ -2,7 +2,7 @@ name: CoinEx Signal Bot
 
 on:
   schedule:
-    - cron: '*/15 * * * *'  # هر 15 دقیقه اجرا شود
+    - cron: '*/15 * * * *'
   workflow_dispatch:
     inputs:
       debug_mode:
@@ -33,60 +33,43 @@ jobs:
 
     - name: Analyze basic structure
       run: |
-        echo "🔍 Analyzing project structure..."
+        echo "Analyzing project structure..."
         echo ""
-        echo "📁 Current directory: $(pwd)"
+        echo "Current directory: $(pwd)"
         echo ""
         
-        # بررسی دایرکتوری‌های اصلی
-        echo "📂 Directory check:"
-        directories=("services" "strategies" "utils" "config" "tests")
-        for dir in "${directories[@]}"; do
-          if [ -d "$dir" ]; then
-            echo "✅ $dir/"
-            echo "   Files: $(ls -1 "$dir" 2>/dev/null | tr '\n' ' ' || echo 'None')"
-          else
-            echo "❌ $dir/ (missing)"
-          fi
-        done
+        echo "Directory check:"
+        echo "services/: $(if [ -d "services" ]; then echo "exists - $(ls services | wc -l) files"; else echo "missing"; fi)"
+        echo "strategies/: $(if [ -d "strategies" ]; then echo "exists - $(ls strategies | wc -l) files"; else echo "missing"; fi)"
+        echo "utils/: $(if [ -d "utils" ]; then echo "exists - $(ls utils | wc -l) files"; else echo "missing"; fi)"
+        echo "config/: $(if [ -d "config" ]; then echo "exists - $(ls config | wc -l) files"; else echo "missing"; fi)"
+        echo "tests/: $(if [ -d "tests" ]; then echo "exists - $(ls tests | wc -l) files"; else echo "missing"; fi)"
         echo ""
 
     - name: Check Python files
       run: |
-        echo "🐍 Python files check:"
-        important_files=(
-          "main.py"
-          "config/config.py"
-          "services/coinex_api.py"
-          "services/telegram_bot.py"
-          "strategies/mutanabby_strategy.py"
-          "requirements.txt"
-        )
-        
-        for file in "${important_files[@]}"; do
-          if [ -f "$file" ]; then
-            echo "✅ $file (exists)"
-          else
-            echo "❌ $file (missing)"
-          fi
-        done
+        echo "Python files check:"
+        echo "main.py: $(if [ -f "main.py" ]; then echo "exists"; else echo "missing"; fi)"
+        echo "config/config.py: $(if [ -f "config/config.py" ]; then echo "exists"; else echo "missing"; fi)"
+        echo "services/coinex_api.py: $(if [ -f "services/coinex_api.py" ]; then echo "exists"; else echo "missing"; fi)"
+        echo "services/telegram_bot.py: $(if [ -f "services/telegram_bot.py" ]; then echo "exists"; else echo "missing"; fi)"
+        echo "strategies/mutanabby_strategy.py: $(if [ -f "strategies/mutanabby_strategy.py" ]; then echo "exists"; else echo "missing"; fi)"
+        echo "requirements.txt: $(if [ -f "requirements.txt" ]; then echo "exists"; else echo "missing"; fi)"
         echo ""
 
     - name: Create missing directories
       run: |
-        echo "📁 Creating necessary directories..."
+        echo "Creating necessary directories..."
         mkdir -p logs debug
-        echo "✅ Directories created: logs/, debug/"
+        echo "Directories created: logs/, debug/"
 
-    - name: Create __init__.py files
+    - name: Create init files
       run: |
-        echo "📦 Ensuring __init__.py files..."
+        echo "Ensuring __init__.py files..."
         for dir in services strategies utils config; do
           if [ -d "$dir" ] && [ ! -f "$dir/__init__.py" ]; then
             echo "# Package init" > "$dir/__init__.py"
-            echo "✅ Created $dir/__init__.py"
-          elif [ -f "$dir/__init__.py" ]; then
-            echo "✅ $dir/__init__.py (exists)"
+            echo "Created $dir/__init__.py"
           fi
         done
 
@@ -107,112 +90,126 @@ jobs:
 
     - name: Install dependencies
       run: |
-        echo "📦 Installing dependencies..."
+        echo "Installing dependencies..."
         python -m pip install --upgrade pip
         
-        # نصب dependencies از requirements.txt یا پیش‌فرض
         if [ -f "requirements.txt" ]; then
           pip install -r requirements.txt
-          echo "✅ Installed from requirements.txt"
+          echo "Installed from requirements.txt"
         else
           pip install requests pandas numpy
-          echo "✅ Installed default packages"
+          echo "Installed default packages"
         fi
 
-    - name: Simple import test
+    - name: Test basic imports
       run: |
-        echo "🐍 Testing basic imports..."
+        echo "Testing basic imports..."
         python -c "
+import sys
+print('Python path:')
+for p in sys.path:
+    print('  ' + p)
+
+print()
+print('Testing imports:')
 try:
     import requests
-    import pandas as pd
-    import numpy as np
-    print('✅ Basic imports successful')
-    
-    # تست ایمپورت ماژول‌های پروژه
-    import sys
-    sys.path.insert(0, '.')
-    
-    try:
-        from services.coinex_api import CoinExAPI
-        print('✅ CoinExAPI imported')
-    except ImportError as e:
-        print(f'⚠️ CoinExAPI import: {e}')
-    
-    try:
-        from services.telegram_bot import TelegramBot
-        print('✅ TelegramBot imported')
-    except ImportError as e:
-        print(f'⚠️ TelegramBot import: {e}')
-        
-except Exception as e:
-    print(f'❌ Import failed: {e}')
-        "
-
-    - name: Create simple main if needed
-      run: |
-        if [ ! -f "main.py" ]; then
-          echo "📝 Creating simple main.py..."
-          cat > main.py << 'EOF'
-import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-print("🤖 Starting Simple Signal Bot")
+    print('✅ requests')
+except ImportError:
+    print('❌ requests')
 
 try:
-    from services.coinex_api import CoinExAPI
-    from services.telegram_bot import TelegramBot
-    from strategies.mutanabby_strategy import MutanabbyStrategy
-    from config.config import SYMBOLS, TIMEFRAME
-    
-    print("✅ All imports successful")
-    
-    # نمونه‌سازی کلاس‌ها
-    coinex_api = CoinExAPI()
-    telegram_bot = TelegramBot()
-    strategy = MutanabbyStrategy()
-    
-    print(f"📊 Processing symbols: {SYMBOLS}")
-    print("🎯 Bot is ready (simulation mode)")
-    
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    print("Please check your project structure")
-except Exception as e:
-    print(f"💥 Unexpected error: {e}")
+    import pandas as pd
+    print('✅ pandas')
+except ImportError:
+    print('❌ pandas')
 
-print("✅ Bot setup completed")
-EOF
-          echo "✅ Created main.py"
-        else
-          echo "✅ main.py already exists"
-        fi
+try:
+    import numpy as np
+    print('✅ numpy')
+except ImportError:
+    print('❌ numpy')
+        "
 
-    - name: Run the bot
+    - name: Test project imports
+      run: |
+        echo "Testing project imports..."
+        python -c "
+import sys
+sys.path.insert(0, '.')
+
+print('Testing project imports:')
+modules = [
+    'services.coinex_api',
+    'services.telegram_bot', 
+    'strategies.mutanabby_strategy',
+    'config.config'
+]
+
+for module in modules:
+    try:
+        __import__(module)
+        print(f'✅ {module}')
+    except ImportError as e:
+        print(f'❌ {module}: {e}')
+        "
+
+    - name: Run main script
       env:
         COINEX_ACCESS_ID: ${{ secrets.COINEX_ACCESS_ID }}
         COINEX_SECRET_KEY: ${{ secrets.COINEX_SECRET_KEY }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        echo "🚀 Running the bot..."
-        python main.py
+        echo "Running main script..."
+        if [ -f "main.py" ]; then
+          python main.py
+        else
+          echo "main.py not found, creating simple version..."
+          echo 'import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-    - name: Create success flag
+print("Simple Signal Bot - Checking imports")
+
+try:
+    from services.coinex_api import CoinExAPI
+    print("✅ CoinExAPI imported")
+except ImportError as e:
+    print(f"❌ CoinExAPI: {e}")
+
+try:
+    from services.telegram_bot import TelegramBot
+    print("✅ TelegramBot imported")
+except ImportError as e:
+    print(f"❌ TelegramBot: {e}")
+
+try:
+    from strategies.mutanabby_strategy import MutanabbyStrategy
+    print("✅ MutanabbyStrategy imported")
+except ImportError as e:
+    print(f"❌ MutanabbyStrategy: {e}")
+
+try:
+    from config.config import SYMBOLS, TIMEFRAME
+    print(f"✅ Config imported: {SYMBOLS}")
+except ImportError as e:
+    print(f"❌ Config: {e}")
+
+print("Import check completed")' > main.py
+          python main.py
+        fi
+
+    - name: Create success file
       run: |
-        echo "✅ Workflow completed successfully at $(date)" > success.txt
-        echo "📅 Timestamp: $(date)" >> success.txt
-        echo "🐍 Python version: $(python --version)" >> success.txt
+        echo "Workflow completed at $(date)" > success.txt
+        echo "Python: $(python --version)" >> success.txt
 
     - name: Upload results
       uses: actions/upload-artifact@v4
       with:
         name: bot-results-${{ github.run_id }}
-        path: |
-          success.txt
-          logs/
-        retention-days: 3
+        path: success.txt
 
   notify:
     runs-on: ubuntu-latest
@@ -220,48 +217,33 @@ EOF
     if: always()
     
     steps:
-    - name: Send notification
+    - name: Send telegram notification
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        echo "📨 Sending notification..."
+        echo "Sending telegram notification..."
         
-        # ایجاد یک اسکریپت پایتون ساده برای ارسال通知
-        cat > send_notification.py << 'EOF'
+        python -c "
 import os
 import requests
 
-def send_telegram_message():
-    token = os.getenv('TELEGRAM_BOT_TOKEN')
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    
-    if not token or not chat_id:
-        print("❌ Telegram credentials missing")
-        return False
-    
-    message = "🤖 Signal Bot Execution Completed\n✅ Workflow finished successfully"
-    
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    payload = {
-        'chat_id': chat_id,
-        'text': message
-    }
+token = os.getenv('TELEGRAM_BOT_TOKEN')
+chat_id = os.getenv('TELEGRAM_CHAT_ID')
+
+if token and chat_id:
+    message = 'Signal Bot execution completed'
+    url = f'https://api.telegram.org/bot{token}/sendMessage'
+    payload = {'chat_id': chat_id, 'text': message}
     
     try:
         response = requests.post(url, json=payload, timeout=10)
         if response.status_code == 200:
-            print("✅ Notification sent")
-            return True
+            print('Notification sent successfully')
         else:
-            print(f"❌ Failed to send: {response.text}")
-            return False
+            print(f'Failed to send: {response.text}')
     except Exception as e:
-        print(f"❌ Error sending: {e}")
-        return False
-
-if __name__ == "__main__":
-    send_telegram_message()
-EOF
-        
-        python send_notification.py
+        print(f'Error: {e}')
+else:
+    print('Telegram credentials not available')
+        "
