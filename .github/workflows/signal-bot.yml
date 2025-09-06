@@ -229,8 +229,19 @@ jobs:
             python main.py
         fi
 
+    - name: Check Telegram credentials
+      id: check-telegram
+      run: |
+        # بررسی وجود secrets تلگرام
+        if [ "${{ secrets.TELEGRAM_BOT_TOKEN }}" != "" ] && [ "${{ secrets.TELEGRAM_CHAT_ID }}" != "" ]; then
+            echo "has_telegram_creds=true" >> $GITHUB_OUTPUT
+        else
+            echo "has_telegram_creds=false" >> $GITHUB_OUTPUT
+        fi
+        echo "Telegram credentials available: ${{ steps.check-telegram.outputs.has_telegram_creds }}"
+
     - name: Send workflow status to Telegram
-      if: always() && secrets.TELEGRAM_BOT_TOKEN != '' && secrets.TELEGRAM_CHAT_ID != ''
+      if: always() && steps.check-telegram.outputs.has_telegram_creds == 'true'
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -239,6 +250,9 @@ jobs:
         GITHUB_WORKFLOW: ${{ github.workflow }}
       run: |
         echo "=== Sending Telegram Notification ==="
+        
+        # ایجاد پوشه scripts اگر وجود ندارد
+        mkdir -p .github/scripts
         
         cat > .github/scripts/notify_workflow_status.py << 'EOF'
         import requests
@@ -258,7 +272,7 @@ jobs:
             repository = os.getenv('GITHUB_REPOSITORY', 'Unknown')
             
             # تشخیص وضعیت اجرا
-            success = "success" if os.getenv('JOB_STATUS', '') == 'success' else "failed"
+            success = "success" if os.getenv('ACTIONS_STEP_STATUS', '') == 'success' else "failed"
             
             message = f"""
         🔄 <b>Workflow Status Update</b>
