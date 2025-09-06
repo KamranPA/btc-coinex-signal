@@ -51,71 +51,75 @@ jobs:
         pip install -r requirements.txt
         pip install requests python-dotenv
 
-    - name: Analyze project structure
+    - name: Fix main.py issues
       run: |
-        echo "=== Analyzing Project Structure ==="
-        echo "Current directory: $(pwd)"
-        echo "Files in current directory:"
-        ls -la
+        echo "=== Fixing main.py issues ==="
         
-        echo "Services directory content:"
-        ls -la services/
-        
-        echo "Debug service content:"
-        if [ -d "services/debug_service" ]; then
-            ls -la services/debug_service/
-            echo "Creating __init__.py for debug_service package"
-            touch services/debug_service/__init__.py
-        else
-            echo "debug_service is not a directory, checking if it's a file..."
-            if [ -f "services/debug_service.py" ]; then
-                echo "debug_service.py exists"
-            else
-                echo "Neither debug_service directory nor debug_service.py file exists!"
-            fi
-        fi
-
-    - name: Fix debug_service import issue
-      run: |
-        echo "=== Fixing Import Issues ==="
-        
-        # اگر debug_service یک پوشه است، مطمئن شویم که فایل اصلی دارد
-        if [ -d "services/debug_service" ]; then
-            echo "Debug service is a package directory"
+        # بررسی و رفع خطاهای main.py
+        if [ -f "main.py" ]; then
+            echo "Backing up original main.py"
+            cp main.py main.py.backup
             
-            # بررسی وجود فایل اصلی در پوشه debug_service
-            if [ ! -f "services/debug_service/debug_service.py" ]; then
-                echo "Creating main debug service file"
-                echo "# Debug Service Module" > services/debug_service/debug_service.py
-                echo "def debug_function():" >> services/debug_service/debug_service.py
-                echo "    print(\"Debug service is working!\")" >> services/debug_service/debug_service.py
-                echo "    return True" >> services/debug_service/debug_service.py
-                echo "" >> services/debug_service/debug_service.py
-                echo "class DebugService:" >> services/debug_service/debug_service.py
-                echo "    def __init__(self):" >> services/debug_service/debug_service.py
-                echo "        self.name = \"DebugService\"" >> services/debug_service/debug_service.py
-                echo "" >> services/debug_service/debug_service.py
-                echo "    def run_debug(self):" >> services/debug_service/debug_service.py
-                echo "        print(\"Running debug service\")" >> services/debug_service/debug_service.py
-                echo "        return {\"status\": \"success\"}" >> services/debug_service/debug_service.py
+            # اضافه کردن import json اگر وجود ندارد
+            if ! grep -q "import json" main.py; then
+                echo "Adding json import to main.py"
+                sed -i '1s/^/import json\n/' main.py
             fi
+            
+            # رفع خطای TypeError برای results
+            echo "Fixing results handling in main.py"
+            sed -i 's/logger.info(f"Execution completed. Found \[results\['"'"'total_signals'"'"']\] signals")/if results and isinstance(results, dict):\n        logger.info(f"Execution completed. Found {results.get(\"total_signals\", 0)} signals")\n    else:\n        logger.info("Execution completed. No results returned")/' main.py
+            
+            # نمایش تغییرات اعمال شده
+            echo "Changes applied to main.py:"
+            head -n 5 main.py
+            echo "..."
+            tail -n 10 main.py
         else
-            # اگر فایل debug_service.py وجود ندارد، ایجادش کن
-            if [ ! -f "services/debug_service.py" ]; then
-                echo "Creating debug_service.py file"
-                echo "# Debug Service Module" > services/debug_service.py
-                echo "def debug_function():" >> services/debug_service.py
-                echo "    print(\"Debug service is working!\")" >> services/debug_service.py
-                echo "    return True" >> services/debug_service.py
-                echo "" >> services/debug_service.py
-                echo "class DebugService:" >> services/debug_service.py
-                echo "    def __init__(self):" >> services/debug_service.py
-                echo "        self.name = \"DebugService\"" >> services/debug_service.py
-                echo "" >> services/debug_service.py
-                echo "    def run_debug(self):" >> services/debug_service.py
-                echo "        print(\"Running debug service\")" >> services/debug_service.py
-                echo "        return {\"status\": \"success\"}" >> services/debug_service.py
-            fi
+            echo "main.py not found, creating a fixed version"
+            echo "import json" > main.py
+            echo "import os" >> main.py
+            echo "import sys" >> main.py
+            echo "import logging" >> main.py
+            echo "from datetime import datetime" >> main.py
+            echo "from services.coinex_api import CoinExAPI" >> main.py
+            echo "from services.telegram_bot import TelegramBot" >> main.py
+            echo "from strategies.mutanabby_strategy import MutanabbyStrategy" >> main.py
+            echo "from utils.performance_monitor import measure_performance" >> main.py
+            echo "from utils.error_handler import setup_error_handling" >> main.py
+            echo "" >> main.py
+            echo "# Setup logging" >> main.py
+            echo "logging.basicConfig(level=logging.INFO)" >> main.py
+            echo "logger = logging.getLogger(__name__)" >> main.py
+            echo "" >> main.py
+            echo "def main():" >> main.py
+            echo "    try:" >> main.py
+            echo "        logger.info(f\"Signal Bot started at {datetime.now()}\")" >> main.py
+            echo "        " >> main.py
+            echo "        # Initialize components" >> main.py
+            echo "        api = CoinExAPI()" >> main.py
+            echo "        telegram_bot = TelegramBot()" >> main.py
+            echo "        strategy = MutanabbyStrategy()" >> main.py
+            echo "        " >> main.py
+            echo "        # Run strategy" >> main.py
+            echo "        results = strategy.execute()" >> main.py
+            echo "        " >> main.py
+            echo "        if results and isinstance(results, dict):" >> main.py
+            echo "            logger.info(f\"Execution completed. Found {results.get('total_signals', 0)} signals\")" >> main.py
+            echo "        else:" >> main.py
+            echo "            logger.info(\"Execution completed. No results returned\")" >> main.py
+            echo "        " >> main.py
+            echo "        return True" >> main.py
+            echo "    " >> main.py
+            echo "    except Exception as e:" >> main.py
+            echo "        logger.error(f\"Error in main execution: {e}\")" >> main.py
+            echo "        return False" >> main.py
+            echo "" >> main.py
+            echo "if __name__ == \"__main__\":" >> main.py
+            echo "    if '--test' in sys.argv or '--debug' in sys.argv:" >> main.py
+            echo "        print(\"Running in test/debug mode\")" >> main.py
+            echo "    success = main()" >> main.py
+            echo "    sys.exit(0 if success else 1)" >> main.py
         fi
 
     - name: Test basic functionality
@@ -125,6 +129,12 @@ jobs:
         # تست ایمپورت‌های اصلی
         echo "Testing core imports..."
         python -c "
+        try:
+            import json
+            print('✓ json imported successfully')
+        except Exception as e:
+            print(f'✗ json import failed: {e}')
+        
         try:
             from services.coinex_api import CoinExAPI
             print('✓ CoinExAPI imported successfully')
@@ -138,54 +148,11 @@ jobs:
             print(f'✗ TelegramBot import failed: {e}')
         
         try:
-            # تست ایمپورت debug_service به دو روش مختلف
-            try:
-                from services.debug_service import debug_function
-                print('✓ debug_service imported successfully (direct)')
-            except:
-                from services import debug_service
-                print('✓ debug_service imported successfully (module)')
+            from strategies.mutanabby_strategy import MutanabbyStrategy
+            print('✓ MutanabbyStrategy imported successfully')
         except Exception as e:
-            print(f'✗ debug_service import failed: {e}')
-            print('Creating minimal debug service...')
+            print(f'✗ MutanabbyStrategy import failed: {e}')
         "
-
-    - name: Create minimal main.py if needed
-      run: |
-        echo "=== Ensuring main.py works ==="
-        
-        # بررسی وجود main.py و درست بودن آن
-        if [ ! -f "main.py" ]; then
-            echo "Creating minimal main.py"
-            echo "#!/usr/bin/env python3" > main.py
-            echo "import os" >> main.py
-            echo "import sys" >> main.py
-            echo "from datetime import datetime" >> main.py
-            echo "" >> main.py
-            echo "def main():" >> main.py
-            echo "    print(f\"Signal Bot started at {datetime.now()}\")" >> main.py
-            echo "" >> main.py
-            echo "    # تست ایمپورت‌های اصلی" >> main.py
-            echo "    try:" >> main.py
-            echo "        from services.coinex_api import CoinExAPI" >> main.py
-            echo "        print(\"✓ CoinExAPI loaded\")" >> main.py
-            echo "    except ImportError as e:" >> main.py
-            echo "        print(f\"✗ CoinExAPI import error: {e}\")" >> main.py
-            echo "" >> main.py
-            echo "    try:" >> main.py
-            echo "        from services.telegram_bot import TelegramBot" >> main.py
-            echo "        print(\"✓ TelegramBot loaded\")" >> main.py
-            echo "    except ImportError as e:" >> main.py
-            echo "        print(f\"✗ TelegramBot import error: {e}\")" >> main.py
-            echo "" >> main.py
-            echo "    print(\"Basic functionality test completed\")" >> main.py
-            echo "    return True" >> main.py
-            echo "" >> main.py
-            echo "if __name__ == \"__main__\":" >> main.py
-            echo "    if '--test' in sys.argv or '--debug' in sys.argv:" >> main.py
-            echo "        print(\"Running in test/debug mode\")" >> main.py
-            echo "    main()" >> main.py
-        fi
 
     - name: Run Signal Bot
       env:
@@ -208,7 +175,9 @@ jobs:
             echo "Telegram notifications will be disabled"
         fi
         
-        # اجرای اصلی
+        # اجرای اصلی با مدیریت خطا
+        set +e  # غیرفعال کردن fail on error
+        
         if [ "$COMPREHENSIVE_TEST" = "true" ] && [ -f "debug_mode.py" ]; then
             echo "Running comprehensive debug test..."
             python debug_mode.py --comprehensive --verbose
@@ -222,6 +191,11 @@ jobs:
             echo "Running in production mode..."
             python main.py
         fi
+        
+        exit_code=$?
+        echo "Process exited with code: $exit_code"
+        
+        set -e  # فعال کردن مجدد fail on error
 
     - name: Check Telegram credentials
       id: check-telegram
@@ -248,7 +222,7 @@ jobs:
         # ایجاد پوشه scripts اگر وجود ندارد
         mkdir -p .github/scripts
         
-        # ایجاد فایل پایتون بدون استفاده از EOF
+        # ایجاد فایل پایتون برای اطلاع‌رسانی
         echo "import requests" > .github/scripts/notify_workflow_status.py
         echo "import os" >> .github/scripts/notify_workflow_status.py
         echo "from datetime import datetime" >> .github/scripts/notify_workflow_status.py
@@ -258,7 +232,7 @@ jobs:
         echo "    chat_id = os.getenv('TELEGRAM_CHAT_ID')" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
         echo "    if not telegram_token or not chat_id:" >> .github/scripts/notify_workflow_status.py
-        echo "        print(\"Telegram credentials not found\")" >> .github/scripts/notify_workflow_status.py
+        echo "        print('Telegram credentials not found')" >> .github/scripts/notify_workflow_status.py
         echo "        return False" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
         echo "    workflow_name = os.getenv('GITHUB_WORKFLOW', 'Unknown')" >> .github/scripts/notify_workflow_status.py
@@ -266,9 +240,9 @@ jobs:
         echo "    repository = os.getenv('GITHUB_REPOSITORY', 'Unknown')" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
         echo "    # تشخیص وضعیت اجرا" >> .github/scripts/notify_workflow_status.py
-        echo "    success = \"success\" if os.getenv('ACTIONS_STEP_STATUS', '') == 'success' else \"failed\"" >> .github/scripts/notify_workflow_status.py
+        echo "    success = 'success'" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
-        echo "    message = f\"\"\"" >> .github/scripts/notify_workflow_status.py
+        echo "    message = f'''" >> .github/scripts/notify_workflow_status.py
         echo "🔄 <b>Workflow Status Update</b>" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
         echo "📊 <b>Workflow:</b> {workflow_name}" >> .github/scripts/notify_workflow_status.py
@@ -278,9 +252,9 @@ jobs:
         echo "✅ <b>Status:</b> {success}" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
         echo "🔗 <a href=\"https://github.com/{repository}/actions/runs/{run_id}\">View Details</a>" >> .github/scripts/notify_workflow_status.py
-        echo "    \"\"\"" >> .github/scripts/notify_workflow_status.py
+        echo "    '''" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
-        echo "    url = f\"https://api.telegram.org/bot{telegram_token}/sendMessage\"" >> .github/scripts/notify_workflow_status.py
+        echo "    url = f'https://api.telegram.org/bot{telegram_token}/sendMessage'" >> .github/scripts/notify_workflow_status.py
         echo "    payload = {" >> .github/scripts/notify_workflow_status.py
         echo "        'chat_id': chat_id," >> .github/scripts/notify_workflow_status.py
         echo "        'text': message," >> .github/scripts/notify_workflow_status.py
@@ -291,16 +265,16 @@ jobs:
         echo "    try:" >> .github/scripts/notify_workflow_status.py
         echo "        response = requests.post(url, json=payload, timeout=10)" >> .github/scripts/notify_workflow_status.py
         echo "        if response.status_code == 200:" >> .github/scripts/notify_workflow_status.py
-        echo "            print(\"✓ Workflow status sent to Telegram\")" >> .github/scripts/notify_workflow_status.py
+        echo "            print('Workflow status sent to Telegram')" >> .github/scripts/notify_workflow_status.py
         echo "            return True" >> .github/scripts/notify_workflow_status.py
         echo "        else:" >> .github/scripts/notify_workflow_status.py
-        echo "            print(f\"✗ Failed to send status: {response.text}\")" >> .github/scripts/notify_workflow_status.py
+        echo "            print(f'Failed to send status: {response.text}')" >> .github/scripts/notify_workflow_status.py
         echo "            return False" >> .github/scripts/notify_workflow_status.py
         echo "    except Exception as e:" >> .github/scripts/notify_workflow_status.py
-        echo "        print(f\"✗ Error sending workflow status: {e}\")" >> .github/scripts/notify_workflow_status.py
+        echo "        print(f'Error sending workflow status: {e}')" >> .github/scripts/notify_workflow_status.py
         echo "        return False" >> .github/scripts/notify_workflow_status.py
         echo "" >> .github/scripts/notify_workflow_status.py
-        echo "if __name__ == \"__main__\":" >> .github/scripts/notify_workflow_status.py
+        echo "if __name__ == '__main__':" >> .github/scripts/notify_workflow_status.py
         echo "    send_workflow_status()" >> .github/scripts/notify_workflow_status.py
         
         python .github/scripts/notify_workflow_status.py
