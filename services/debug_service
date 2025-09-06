@@ -1,0 +1,160 @@
+import json
+import pandas as pd
+import numpy as np
+from datetime import datetime, timedelta
+import traceback
+import os
+from config.config import SYMBOLS, TIMEFRAME
+from services.coinex_api import CoinExAPI
+from strategies.mutanabby_strategy import MutanabbyStrategy
+
+class DebugService:
+    def __init__(self):
+        self.debug_dir = "debug"
+        self.reports_dir = f"{self.debug_dir}/debug_reports"
+        self.historical_dir = f"{self.debug_dir}/historical_signals"
+        os.makedirs(self.reports_dir, exist_ok=True)
+        os.makedirs(self.historical_dir, exist_ok=True)
+        
+        self.coinex_api = CoinExAPI()
+        self.strategy = MutanabbyStrategy()
+    
+    def generate_debug_report(self, data, signals, symbol):
+        """ایجاد گزارش دیباگ کامل"""
+        try:
+            report = {
+                "timestamp": datetime.now().isoformat(),
+                "symbol": symbol,
+                "data_points": len(data),
+                "signals_found": len(signals),
+                "latest_price": data['close'].iloc[-1] if len(data) > 0 else None,
+                "indicators": self._calculate_indicators(data),
+                "signal_details": signals,
+                "data_sample": self._get_data_sample(data),
+                "strategy_parameters": self._get_strategy_params()
+            }
+            
+            # ذخیره گزارش
+            filename = f"{self.reports_dir}/debug_report_{symbol}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            with open(filename, 'w', encoding='utf-8') as f:
+                json.dump(report, f, indent=2, ensure_ascii=False)
+            
+            return report
+            
+        except Exception as e:
+            error_msg = f"Error generating debug report: {str(e)}\n{traceback.format_exc()}"
+            print(error_msg)
+            return {"error": error_msg}
+    
+    def _calculate_indicators(self, data):
+        """محاسبه همه اندیکاتورها برای دیباگ"""
+        if len(data) < 50:
+            return {"error": "Insufficient data"}
+        
+        try:
+            # محاسبه EMAها
+            ema_20 = data['close'].ewm(span=20).mean().iloc[-1]
+            ema_50 = data['close'].ewm(span=50).mean().iloc[-1]
+            ema_150 = data['close'].ewm(span=150).mean().iloc[-1]
+            ema_200 = data['close'].ewm(span=200).mean().iloc[-1]
+            
+            # محاسبه RSI
+            delta = data['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs)).iloc[-1]
+            
+            # محاسبه حجم میانگین
+            avg_volume = data['volume'].rolling(window=20).mean().iloc[-1]
+            current_volume = data['volume'].iloc[-1]
+            
+            return {
+                "ema_20": round(ema_20, 4),
+                "ema_50": round(ema_50, 4),
+                "ema_150": round(ema_150, 4),
+                "ema_200": round(ema_200, 4),
+                "rsi": round(rsi, 2),
+                "volume_ratio": round(current_volume / avg_volume, 2) if avg_volume > 0 else 0,
+                "price_change_24h": self._calculate_price_change(data)
+            }
+            
+        except Exception as e:
+            return {"error": f"Indicator calculation failed: {str(e)}"}
+    
+    def _calculate_price_change(self, data):
+        """محاسبه تغییرات قیمت"""
+        if len(data) >= 96:  # 24 ساعت با داده 15 دقیقه‌ای
+            return round((data['close'].iloc[-1] / data['close'].iloc[-96] - 1) * 100, 2)
+        return None
+    
+    def _get_data_sample(self, data):
+        """نمونه‌ای از داده‌ها برای دیباگ"""
+        if len(data) > 10:
+            sample = data.iloc[-10:].copy()
+            return {
+                "timestamps": sample.index.strftime('%Y-%m-%d %H:%M').tolist(),
+                "prices": sample['close'].round(4).tolist(),
+                "volumes": sample['volume'].round(2).tolist()
+            }
+        return {"error": "Not enough data"}
+    
+    def _get_strategy_params(self):
+        """پارامترهای استراتژی"""
+        return {
+            "sensitivity": self.strategy.sensitivity,
+            "signal_tuner": self.strategy.signal_tuner,
+            "stop_loss_multiplier": self.strategy.stop_loss_multiplier,
+            "risk_reward_ratios": self.strategy.risk_reward_ratios
+        }
+    
+    def run_comprehensive_test(self):
+        """اجرای تست جامع روی همه نمادها"""
+        test_results = {}
+        
+        for symbol in SYMBOLS:
+            try:
+                print(f"Running comprehensive test for {symbol}...")
+                
+                # دریافت داده
+                market_data = self.coinex_api.get_market_data(symbol, 'kline', 300, TIMEFRAME)
+                
+                if not market_data:
+                    test_results[symbol] = {"status": "failed", "error": "No data"}
+                    continue
+                
+                # پردازش داده
+                df = pd.DataFrame(market_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+                df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
+                df.set_index('timestamp', inplace=True)
+                df['symbol'] = symbol
+                
+                for col in ['open', 'high', 'low', 'close', 'volume']:
+                    df[col] = pd.to_numeric(df[col])
+                
+                # تولید سیگنال
+                signals = self.strategy.generate_signals(df)
+                
+                # تولید گزارش
+                report = self.generate_debug_report(df, signals, symbol)
+                
+                test_results[symbol] = {
+                    "status": "success",
+                    "data_points": len(df),
+                    "signals_found": len(signals),
+                    "report_generated": True if "error" not in report else False
+                }
+                
+            except Exception as e:
+                test_results[symbol] = {
+                    "status": "failed",
+                    "error": str(e),
+                    "traceback": traceback.format_exc()
+                }
+        
+        # ذخیره نتایج تست
+        results_file = f"{self.reports_dir}/comprehensive_test_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        with open(results_file, 'w', encoding='utf-8') as f:
+            json.dump(test_results, f, indent=2, ensure_ascii=False)
+        
+        return test_results
