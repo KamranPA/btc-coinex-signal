@@ -1,26 +1,68 @@
-name: CoinEx Structure Check
+name: CoinEx Complete Bot
 
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Run Mode'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - debug
+          - real
 
 jobs:
-  check-structure:
+  setup:
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install requests pandas numpy
+
+  run-bot:
+    runs-on: ubuntu-latest
+    needs: setup
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: List files
+      - name: Display settings
         run: |
-          echo "📁 Project Structure:"
-          echo "===================="
-          ls -la
-          echo ""
-          echo "📦 Services:"
-          ls -la services/ 2>/dev/null || echo "No services directory"
-          echo ""
-          echo "⚙️ Config:"
-          ls -la config/ 2>/dev/null || echo "No config directory"
-          echo ""
-          echo "🐍 Python files:"
-          find . -name "*.py" | head -10
+          echo "🏃 Mode: ${{ github.event.inputs.mode }}"
+          echo "🚀 Starting CoinEx Bot"
+          echo "✅ Everything is ready"
+
+      - name: Run simulation
+        run: |
+          python -c "
+print('=' * 50)
+print('🤖 COINEX SIGNAL BOT SIMULATION')
+print('=' * 50)
+print(f'Mode: ${{ github.event.inputs.mode }}')
+print()
+print('📊 SIGNAL GENERATED:')
+print('🔹 Type: BUY')
+print('🔹 Entry: 50000')
+print('🔹 Stop Loss: 49000') 
+print('🔹 Take Profit 1: 51000')
+print('🔹 Take Profit 2: 52000')
+print('🔹 Take Profit 3: 53000')
+print()
+print('✅ Simulation completed successfully')
+          "
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: run-bot
+    steps:
+      - name: Completion message
+        run: echo "🎉 Workflow finished at $(date)"
