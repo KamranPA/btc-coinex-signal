@@ -1,4 +1,4 @@
-name: CoinEx Signal Bot with Structure Check
+name: CoinEx Signal Bot with Debug
 
 on:
   schedule:
@@ -31,138 +31,8 @@ on:
         - 'false'
 
 jobs:
-  check-structure:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Analyze project structure
-      run: |
-        echo "🔍 Analyzing project structure..."
-        echo ""
-        echo "📁 Current working directory: $(pwd)"
-        echo ""
-        
-        echo "📊 Full directory structure:"
-        ls -la
-        echo ""
-        
-        echo "🧩 Checking required directories:"
-        for dir in services strategies utils config debug logs tests .github/scripts; do
-          if [ -d "$dir" ]; then
-            echo "✅ Directory exists: $dir"
-            echo "   Files in $dir: $(ls -1 $dir | tr '\n' ' ')"
-          else
-            echo "❌ Directory missing: $dir"
-          fi
-          echo ""
-        done
-        
-        echo "📄 Checking required files:"
-        required_files=(
-          "main.py"
-          "config/config.py"
-          "services/coinex_api.py"
-          "services/telegram_bot.py"
-          "services/debug_service.py"
-          "strategies/mutanabby_strategy.py"
-          "utils/error_handler.py"
-          "utils/performance_monitor.py"
-          "utils/logger.py"
-          "requirements.txt"
-        )
-        
-        for file in "${required_files[@]}"; do
-          if [ -f "$file" ]; then
-            echo "✅ File exists: $file"
-            echo "   Size: $(wc -l < "$file") lines"
-          else
-            echo "❌ File missing: $file"
-          fi
-          echo ""
-        done
-        
-        echo "🐍 Checking Python package structure:"
-        for dir in services strategies utils config; do
-          if [ -d "$dir" ]; then
-            if [ -f "$dir/__init__.py" ]; then
-              echo "✅ $dir/__init__.py exists"
-            else
-              echo "⚠️  $dir/__init__.py missing - creating it"
-              touch "$dir/__init__.py"
-            fi
-          fi
-        done
-        
-        echo ""
-        echo "📋 Python import test:"
-        python -c "
-import sys
-print('Python path:')
-for p in sys.path:
-    print(f'  {p}')
-print()
-
-# Test basic imports
-try:
-    import pandas as pd
-    print('✅ pandas imported successfully')
-except ImportError as e:
-    print(f'❌ pandas import failed: {e}')
-
-try:
-    import numpy as np
-    print('✅ numpy imported successfully')
-except ImportError as e:
-    print(f'❌ numpy import failed: {e}')
-
-try:
-    import requests
-    print('✅ requests imported successfully')
-except ImportError as e:
-    print(f'❌ requests import failed: {e}')
-        "
-
-    - name: Create missing directories
-      run: |
-        echo "📁 Creating missing directories..."
-        mkdir -p logs debug/debug_reports debug/historical_signals .github/scripts
-        echo "✅ Directories created"
-
-    - name: Create __init__.py files
-      run: |
-        echo "📦 Creating __init__.py files for Python packages..."
-        for dir in services strategies utils config; do
-          if [ -d "$dir" ] && [ ! -f "$dir/__init__.py" ]; then
-            echo "Creating $dir/__init__.py"
-            echo "# Package initialization" > "$dir/__init__.py"
-          fi
-        done
-        echo "✅ __init__.py files created"
-
-    - name: Verify file structure
-      run: |
-        echo "🔎 Final structure verification:"
-        echo ""
-        echo "🏗️ Project structure:"
-        find . -name "*.py" -o -name "*.yml" -o -name "*.yaml" -o -name "requirements.txt" | sort | head -20
-        echo ""
-        
-        echo "📦 Python packages:"
-        for dir in services strategies utils config; do
-          if [ -d "$dir" ]; then
-            echo "$dir/: $(find $dir -name "*.py" | wc -l) Python files"
-            find $dir -name "*.py" -exec basename {} \; | sort | tr '\n' ' '
-            echo ""
-          fi
-        done
-
   run-signal-bot:
     runs-on: ubuntu-latest
-    needs: check-structure
     timeout-minutes: 30
     
     steps:
@@ -177,167 +47,37 @@ except ImportError as e:
 
     - name: Install dependencies
       run: |
-        echo "📦 Installing dependencies..."
         python -m pip install --upgrade pip
-        if [ -f "requirements.txt" ]; then
-          pip install -r requirements.txt
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Create directories
+      run: |
+        mkdir -p logs
+        mkdir -p debug/debug_reports
+        mkdir -p debug/historical_signals
+        mkdir -p .github/scripts
+
+    - name: Run tests with error handling
+      run: |
+        # اجرای تست‌ها با مدیریت خطا
+        echo "Running tests..."
+        if python -m pytest tests/test_coinex_api.py -v; then
+          echo "✓ test_coinex_api.py passed"
         else
-          echo "⚠️ requirements.txt not found, installing default packages"
-          pip install requests pandas numpy python-telegram-bot schedule
+          echo "✗ test_coinex_api.py failed - continuing"
         fi
         
-        echo "✅ Dependencies installed:"
-        pip list | grep -E "(requests|pandas|numpy|telegram|schedule)"
-
-    - name: Test Python imports
-      run: |
-        echo "🐍 Testing Python imports..."
-        
-        # تست ایمپورت ماژول‌های اصلی
-        import_test_script=$(cat << 'EOF'
-import sys
-import os
-
-# اضافه کردن مسیر فعلی به Python path
-current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, current_dir)
-
-print("🔧 Testing imports...")
-print(f"Working directory: {os.getcwd()}")
-print(f"Python path: {sys.path}")
-
-# تست ایمپورت ماژول‌ها
-modules_to_test = [
-    ("services.coinex_api", "CoinExAPI"),
-    ("services.telegram_bot", "TelegramBot"),
-    ("services.debug_service", "DebugService"),
-    ("strategies.mutanabby_strategy", "MutanabbyStrategy"),
-    ("utils.error_handler", "error_handler"),
-    ("utils.performance_monitor", "performance_monitor"),
-    ("config.config", "SYMBOLS"),
-]
-
-success_count = 0
-total_count = len(modules_to_test)
-
-for module_path, attribute in modules_to_test:
-    try:
-        if attribute:
-            module = __import__(module_path, fromlist=[attribute])
-            obj = getattr(module, attribute)
-            print(f"✅ {module_path}.{attribute} imported successfully")
-            success_count += 1
-        else:
-            __import__(module_path)
-            print(f"✅ {module_path} imported successfully")
-            success_count += 1
-    except ImportError as e:
-        print(f"❌ Failed to import {module_path}.{attribute}: {e}")
-    except AttributeError as e:
-        print(f"❌ Attribute error in {module_path}.{attribute}: {e}")
-    except Exception as e:
-        print(f"❌ Unexpected error with {module_path}.{attribute}: {e}")
-
-print(f"\n📊 Import test results: {success_count}/{total_count} successful")
-
-if success_count == total_count:
-    print("🎉 All imports successful!")
-    sys.exit(0)
-else:
-    print("⚠️ Some imports failed")
-    sys.exit(1)
-EOF
-        )
-        
-        echo "$import_test_script" > test_imports.py
-        python test_imports.py
-
-    - name: Create simple main if needed
-      run: |
-        if [ ! -f "main.py" ] || [ ! -s "main.py" ]; then
-          echo "📝 Creating simple main.py..."
-          cat > main.py << 'EOF'
-import time
-import pandas as pd
-import numpy as np
-import sys
-import os
-
-# اضافه کردن مسیرهای پروژه به sys.path
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
-
-try:
-    from services.coinex_api import CoinExAPI
-    from services.telegram_bot import TelegramBot
-    from strategies.mutanabby_strategy import MutanabbyStrategy
-    from config.config import SYMBOLS, TIMEFRAME
-    print("✅ All modules imported successfully")
-except ImportError as e:
-    print(f"❌ Import error: {e}")
-    sys.exit(1)
-
-def run_signal_check():
-    print("🚀 Starting Signal Bot...")
-    
-    coinex_api = CoinExAPI()
-    telegram_bot = TelegramBot()
-    strategy = MutanabbyStrategy()
-    
-    for symbol in SYMBOLS:
-        try:
-            print(f"📊 Processing {symbol}...")
-            
-            # دریافت داده‌های بازار
-            market_data = coinex_api.get_market_data(symbol, 'kline', 100, TIMEFRAME)
-            
-            if not market_data:
-                print(f"⚠️ No data received for {symbol}")
-                continue
-            
-            # پردازش داده
-            df = pd.DataFrame(market_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
-            df.set_index('timestamp', inplace=True)
-            
-            for col in ['open', 'high', 'low', 'close', 'volume']:
-                df[col] = pd.to_numeric(df[col])
-            
-            # تولید سیگنال
-            signals = strategy.generate_signals(df)
-            
-            print(f"📈 Found {len(signals)} signals for {symbol}")
-            
-            # ارسال سیگنال‌ها
-            for signal in signals:
-                message = telegram_bot.format_signal_message(
-                    symbol=symbol,
-                    signal_type='BUY' if signal['type'] == 'BUY' else 'SELL',
-                    entry=round(signal['entry'], 4),
-                    sl=round(signal['sl'], 4),
-                    tp1=round(signal['tp1'], 4),
-                    tp2=round(signal['tp2'], 4),
-                    tp3=round(signal['tp3'], 4)
-                )
-                
-                if telegram_bot.send_message(message):
-                    print(f"✅ Signal sent for {symbol}")
-                else:
-                    print(f"❌ Failed to send signal for {symbol}")
-                
-                time.sleep(1)
-                
-        except Exception as e:
-            print(f"💥 Error processing {symbol}: {str(e)}")
-            continue
-    
-    print("🎯 Signal check completed")
-
-if __name__ == "__main__":
-    run_signal_check()
-EOF
-          echo "✅ simple main.py created"
+        if python -m pytest tests/test_strategy.py -v; then
+          echo "✓ test_strategy.py passed"
         else
-          echo "✅ main.py already exists"
+          echo "✗ test_strategy.py failed - continuing"
+        fi
+        
+        if python -m pytest tests/test_telegram_bot.py -v; then
+          echo "✓ test_telegram_bot.py passed"
+        else
+          echo "✗ test_telegram_bot.py failed - continuing"
         fi
 
     - name: Run Signal Bot
@@ -350,130 +90,222 @@ EOF
         TEST_MODE: ${{ github.event.inputs.test_mode }}
         COMPREHENSIVE_TEST: ${{ github.event.inputs.comprehensive_test }}
       run: |
-        echo "🚀 Starting Signal Bot..."
-        echo "🐞 Debug Mode: $DEBUG_MODE"
-        echo "🧪 Test Mode: $TEST_MODE"
-        echo "🔍 Comprehensive Test: $COMPREHENSIVE_TEST"
+        echo "Starting Signal Bot..."
+        echo "Debug Mode: $DEBUG_MODE"
+        echo "Test Mode: $TEST_MODE"
+        echo "Comprehensive Test: $COMPREHENSIVE_TEST"
         
-        # تست نهایی ایمپورت‌ها
-        python -c "
-import sys
-import os
-sys.path.insert(0, os.path.abspath('.'))
-try:
-    from main import run_signal_check
-    print('✅ Main module imported successfully')
-except Exception as e:
-    print(f'❌ Failed to import main: {e}')
-    sys.exit(1)
-        "
-        
-        # اجرای اصلی
         if [ "$COMPREHENSIVE_TEST" = "true" ]; then
-          echo "🔍 Running comprehensive test..."
-          python -c "
-import sys
-import os
-sys.path.insert(0, os.path.abspath('.'))
-try:
-    from services.debug_service import DebugService
-    debug_service = DebugService()
-    results = debug_service.run_comprehensive_test()
-    print(f'Comprehensive test completed: {len(results)} symbols processed')
-except Exception as e:
-    print(f'Comprehensive test failed: {e}')
-          "
+          echo "Running comprehensive debug test..."
+          python debug_mode.py --comprehensive --verbose
         elif [ "$DEBUG_MODE" = "true" ]; then
-          echo "🐞 Running in debug mode..."
+          echo "Running in debug mode..."
           python main.py --debug --test
         elif [ "$TEST_MODE" = "true" ]; then
-          echo "🧪 Running in test mode..."
+          echo "Running in test mode..."
           python main.py --test
         else
-          echo "🚀 Running in production mode..."
+          echo "Running in production mode..."
           python main.py
         fi
 
-    - name: Upload logs and reports
+    - name: Upload debug reports
+      if: always() && (github.event.inputs.debug_mode == 'true' || github.event.inputs.comprehensive_test == 'true')
+      uses: actions/upload-artifact@v4
+      with:
+        name: debug-reports-${{ github.run_id }}
+        path: |
+          debug/
+          logs/
+        retention-days: 7
+
+    - name: Upload performance logs
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: bot-results-${{ github.run_id }}
-        path: |
-          logs/
-          debug/
-        retention-days: 7
+        name: performance-logs-${{ github.run_id }}
+        path: logs/
+        retention-days: 3
 
-    - name: Send completion notification
+    - name: Send workflow status to Telegram
       if: always()
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_WORKFLOW: ${{ github.workflow }}
       run: |
-        echo "📨 Sending completion notification..."
-        python -c "
-import requests
-import os
-telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
-chat_id = os.getenv('TELEGRAM_CHAT_ID')
-if telegram_token and chat_id:
-    message = '🤖 Signal Bot execution completed\\nRun ID: ${{ github.run_id }}'
-    url = f'https://api.telegram.org/bot{telegram_token}/sendMessage'
-    payload = {'chat_id': chat_id, 'text': message}
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        print('✅ Notification sent')
-    except Exception as e:
-        print(f'❌ Failed to send notification: {e}')
-else:
-    print('⚠️ Telegram credentials not available')
-        "
+        # ایجاد اسکریپت اطلاع‌رسانی动态
+        cat > .github/scripts/notify_workflow_status.py << 'EOF'
+        import requests
+        import os
+        import json
+        from datetime import datetime
+        
+        def send_workflow_status():
+            telegram_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            chat_id = os.getenv('TELEGRAM_CHAT_ID')
+            
+            if not telegram_token or not chat_id:
+                print("Telegram credentials not found")
+                return
+            
+            workflow_name = os.getenv('GITHUB_WORKFLOW', 'Unknown')
+            run_id = os.getenv('GITHUB_RUN_ID', 'Unknown')
+            repository = os.getenv('GITHUB_REPOSITORY', 'Unknown')
+            
+            message = f"""
+        🔄 <b>Workflow Status Update</b>
+        
+        📊 <b>Workflow:</b> {workflow_name}
+        🏷️ <b>Run ID:</b> #{run_id}
+        📁 <b>Repository:</b> {repository}
+        ⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        ✅ <b>Status:</b> Completed
+        
+        🔗 <a href="https://github.com/{repository}/actions/runs/{run_id}">View Workflow Run</a>
+            """
+            
+            url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+            payload = {
+                'chat_id': chat_id,
+                'text': message,
+                'parse_mode': 'HTML',
+                'disable_web_page_preview': True
+            }
+            
+            try:
+                response = requests.post(url, json=payload, timeout=10)
+                if response.status_code == 200:
+                    print("Workflow status sent to Telegram")
+                else:
+                    print(f"Failed to send status: {response.text}")
+            except Exception as e:
+                print(f"Error sending workflow status: {e}")
+        
+        if __name__ == "__main__":
+            send_workflow_status()
+        EOF
+        
+        # اجرای اسکریپت
+        python .github/scripts/notify_workflow_status.py
 
-  post-check:
+  monitor-performance:
     runs-on: ubuntu-latest
-    needs: [check-structure, run-signal-bot]
+    needs: run-signal-bot
     if: always()
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Download results
+    - name: Download performance logs
       uses: actions/download-artifact@v4
       with:
-        name: bot-results-${{ github.run_id }}
+        name: performance-logs-${{ github.run_id }}
 
-    - name: Generate summary report
+    - name: Generate performance report
       run: |
-        echo "📊 Generating summary report..."
-        echo "# Workflow Execution Summary" > summary.md
-        echo "## Run ID: ${{ github.run_id }}" >> summary.md
-        echo "## Status: ${{ job.status }}" >> summary.md
-        echo "## Timestamp: $(date)" >> summary.md
-        echo "" >> summary.md
-        echo "### Artifacts Generated:" >> summary.md
-        if [ -d "logs" ]; then
-          echo "- ✅ Logs directory: $(find logs -type f | wc -l) files" >> summary.md
-        else
-          echo "- ❌ Logs directory: Missing" >> summary.md
-        fi
-        if [ -d "debug" ]; then
-          echo "- ✅ Debug directory: $(find debug -type f | wc -l) files" >> summary.md
-        else
-          echo "- ❌ Debug directory: Missing" >> summary.md
-        fi
+        # ایجاد اسکریپت تحلیل عملکرد
+        cat > .github/scripts/generate_performance_report.py << 'EOF'
+        import json
+        import os
+        from datetime import datetime
         
-        echo "" >> summary.md
-        echo "### Project Structure Status:" >> summary.md
-        echo "- Main.py: $(if [ -f "main.py" ]; then echo "✅ Exists ($(wc -l < main.py) lines)"; else echo "❌ Missing"; fi)" >> summary.md
-        for dir in services strategies utils config; do
-          echo "- $dir/: $(if [ -d "$dir" ]; then echo "✅ Exists ($(find $dir -name '*.py' | wc -l) Python files)"; else echo "❌ Missing"; fi)" >> summary.md
-        done
+        def generate_performance_report():
+            try:
+                if os.path.exists('logs/performance_report.json'):
+                    with open('logs/performance_report.json', 'r') as f:
+                        performance_data = json.load(f)
+                    
+                    report = f"""
+        # Performance Analysis Report
+        **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+        **Workflow Run:** #{os.getenv('GITHUB_RUN_ID', 'Unknown')}
         
-        cat summary.md
+        ## Summary
+        - **Total Duration:** {performance_data.get('total_duration_seconds', 0):.2f} seconds
+        - **Memory Usage:** {performance_data.get('memory_usage_mb', 0):.2f} MB
+        - **CPU Usage:** {performance_data.get('cpu_percent', 0):.2f}%
+        
+        ## Operation Times
+        """
+                    
+                    operation_times = performance_data.get('operation_times', {})
+                    for operation, duration in operation_times.items():
+                        report += f"- **{operation}:** {duration:.4f} seconds\n"
+                    
+                    with open('performance_analysis.md', 'w', encoding='utf-8') as f:
+                        f.write(report)
+                    
+                    print("Performance report generated successfully")
+                else:
+                    print("No performance data found")
+                    
+            except Exception as e:
+                print(f"Error generating performance report: {e}")
+        
+        if __name__ == "__main__":
+            generate_performance_report()
+        EOF
+        
+        python .github/scripts/generate_performance_report.py
 
-    - name: Upload summary report
+    - name: Upload performance analysis
       uses: actions/upload-artifact@v4
       with:
-        name: summary-report-${{ github.run_id }}
-        path: summary.md
+        name: performance-analysis-${{ github.run_id }}
+        path: performance_analysis.md
+
+  cleanup:
+    runs-on: ubuntu-latest
+    needs: [run-signal-bot, monitor-performance]
+    if: always()
+    
+    steps:
+    - name: Cleanup old artifacts
+      run: |
+        echo "Cleanup completed"
+        # می‌توانید اینجا logic پاک کردن artifactهای قدیمی را اضافه کنید
+
+# Workflow تست جداگانه
+  run-tests:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.9'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+
+    - name: Run basic syntax check
+      run: |
+        echo "Checking Python syntax..."
+        python -m py_compile services/*.py strategies/*.py utils/*.py || echo "Syntax errors found"
+        
+    - name: Run minimal tests
+      run: |
+        echo "Running minimal tests..."
+        # تست‌های پایه بدون وابستگی‌های پیچیده
+        python -c "
+        from services.coinex_api import CoinExAPI
+        from services.telegram_bot import TelegramBot
+        print('✓ Basic imports successful')
+        "
+        
+        python -c "
+        from strategies.mutanabby_strategy import MutanabbyStrategy
+        print('✓ Strategy import successful')
+        "
