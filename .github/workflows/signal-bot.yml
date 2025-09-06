@@ -1,55 +1,139 @@
-name: Simple CoinEx Bot
+name: CoinEx Signal Bot
 
 on:
-  workflow_dispatch:
+  schedule:
+    - cron: '*/15 * * * *'  # اجرای خودکار هر 15 دقیقه
+  workflow_dispatch:  # فعال کردن دکمه Run دستی
+    inputs:
+      mode:
+        description: 'حالت اجرا'
+        required: true
+        default: 'test'
+        type: choice
+        options:
+          - test
+          - debug
+          - production
+      symbol:
+        description: 'نماد معاملاتی'
+        required: false
+        default: 'BTCUSDT'
+      timeframe:
+        description: 'تایم فریم'
+        required: false
+        default: '15min'
+        type: choice
+        options:
+          - '1min'
+          - '5min'
+          - '15min'
+          - '30min'
+          - '1h'
 
 jobs:
-  run-simple:
+  setup-environment:
     runs-on: ubuntu-latest
-
+    outputs:
+      has_services: ${{ steps.check-structure.outputs.has_services }}
+      has_config: ${{ steps.check-structure.outputs.has_config }}
+      has_main: ${{ steps.check-structure.outputs.has_main }}
+    
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Setup Python
+    - name: Check project structure
+      id: check-structure
+      run: |
+        echo "🔍 بررسی ساختار پروژه..."
+        
+        # بررسی وجود دایرکتوری‌ها و فایل‌ها
+        if [ -d "services" ]; then
+          echo "✅ دایرکتوری services وجود دارد"
+          echo "has_services=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ دایرکتوری services وجود ندارد"
+          echo "has_services=false" >> $GITHUB_OUTPUT
+        fi
+        
+        if [ -d "config" ]; then
+          echo "✅ دایرکتوری config وجود دارد"
+          echo "has_config=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ دایرکتوری config وجود ندارد"
+          echo "has_config=false" >> $GITHUB_OUTPUT
+        fi
+        
+        if [ -f "main.py" ]; then
+          echo "✅ فایل main.py وجود دارد"
+          echo "has_main=true" >> $GITHUB_OUTPUT
+        else
+          echo "❌ فایل main.py وجود ندارد"
+          echo "has_main=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo ""
+        echo "📁 محتوای دایرکتوری:"
+        ls -la
+        echo ""
+        echo "📦 خدمات: $(ls -la services/ 2>/dev/null || echo 'ندارد')"
+        echo "⚙️ تنظیمات: $(ls -la config/ 2>/dev/null || echo 'ندارد')"
+
+    - name: Create missing directories
+      if: ${{ steps.check-structure.outputs.has_services == 'false' || steps.check-structure.outputs.has_config == 'false' }}
+      run: |
+        echo "📁 ایجاد دایرکتوری‌های ضروری..."
+        mkdir -p services config utils strategies
+        touch services/__init__.py config/__init__.py utils/__init__.py strategies/__init__.py
+        echo "✅ دایرکتوری‌ها ایجاد شدند"
+
+  install-dependencies:
+    runs-on: ubuntu-latest
+    needs: setup-environment
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
+        cache: 'pip'
 
-    - name: Install packages
-      run: pip install requests pandas numpy
-
-    - name: Check files
+    - name: Install dependencies
       run: |
-        echo "Files in repository:"
-        ls -la
+        echo "📦 نصب dependencies..."
+        python -m pip install --upgrade pip
+        
+        # نصب dependencies از requirements.txt یا پیش‌فرض
+        if [ -f "requirements.txt" ]; then
+          pip install -r requirements.txt
+          echo "✅ dependencies از requirements.txt نصب شدند"
+        else
+          pip install requests pandas numpy python-telegram-bot schedule
+          echo "✅ dependencies پیش‌فرض نصب شدند"
+        fi
+        
         echo ""
-        echo "Files in services directory:"
-        ls -la services/ || echo "No services directory"
-        echo ""
-        echo "Files in config directory:"
-        ls -la config/ || echo "No config directory"
+        echo "📊 packages نصب شده:"
+        pip list | grep -E "(requests|pandas|numpy|telegram|schedule)"
 
-    - name: Test imports
+  test-imports:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Test basic imports
       run: |
+        echo "🐍 تست imports پایه..."
         python -c "
-print('Testing imports...')
+print('🧪 تست imports کتابخانه‌های اصلی...')
 try:
     import requests
-    print('✅ requests')
-except:
-    print('❌ requests')
-try:
-    import pandas
-    print('✅ pandas')
-except:
-    print('❌ pandas')
-try:
-    import numpy
-    print('✅ numpy')
-except:
-    print('❌ numpy')
-        "
-
-    - name: Simple test
-      run: echo "Workflow completed successfully"
+    print('✅ requests - OK')
+except ImportError as e:
+    print('❌ requests - Failed:',
