@@ -1,13 +1,39 @@
-name: CoinEx Signal Bot
+name: CoinEx Signal Bot with Debug
 
 on:
   schedule:
     - cron: '*/15 * * * *'  # هر 15 دقیقه اجرا شود
-  workflow_dispatch:  # امکان اجرای دستی
+  workflow_dispatch:
+    inputs:
+      debug_mode:
+        description: 'Enable debug mode'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      test_mode:
+        description: 'Enable test mode (no signals sent)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      comprehensive_test:
+        description: 'Run comprehensive debug test'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
 
 jobs:
   run-signal-bot:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     
     steps:
     - name: Checkout repository
@@ -17,11 +43,23 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
+        cache: 'pip'
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
+        pip install pytest pytest-cov
+
+    - name: Create logs directory
+      run: |
+        mkdir -p logs
+        mkdir -p debug/debug_reports
+        mkdir -p debug/historical_signals
+
+    - name: Run tests
+      run: |
+        python -m pytest tests/ -v --cov=.
 
     - name: Run Signal Bot
       env:
@@ -29,5 +67,72 @@ jobs:
         COINEX_SECRET_KEY: ${{ secrets.COINEX_SECRET_KEY }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        DEBUG_MODE: ${{ github.event.inputs.debug_mode }}
+        TEST_MODE: ${{ github.event.inputs.test_mode }}
+        COMPREHENSIVE_TEST: ${{ github.event.inputs.comprehensive_test }}
       run: |
-        python main.py
+        if [ "$COMPREHENSIVE_TEST" = "true" ]; then
+          echo "Running comprehensive debug test..."
+          python debug_mode.py --comprehensive --verbose
+        elif [ "$DEBUG_MODE" = "true" ]; then
+          echo "Running in debug mode..."
+          python main.py --debug --test
+        elif [ "$TEST_MODE" = "true" ]; then
+          echo "Running in test mode..."
+          python main.py --test
+        else
+          echo "Running in production mode..."
+          python main.py
+        fi
+
+    - name: Upload debug reports
+      if: always() && (github.event.inputs.debug_mode == 'true' || github.event.inputs.comprehensive_test == 'true')
+      uses: actions/upload-artifact@v3
+      with:
+        name: debug-reports-${{ github.run_id }}
+        path: |
+          debug/
+          logs/
+        retention-days: 7
+
+    - name: Upload performance logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-logs-${{ github.run_id }}
+        path: logs/performance_report.json
+        retention-days: 3
+
+    - name: Send workflow status to Telegram
+      if: always()
+      env:
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        # اسکریپت ارسال وضعیت workflow به تلگرام
+        python .github/scripts/notify_workflow_status.py
+
+  monitor-performance:
+    runs-on: ubuntu-latest
+    needs: run-signal-bot
+    if: always()
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Download performance logs
+      uses: actions/download-artifact@v3
+      with:
+        name: performance-logs-${{ github.run_id }}
+
+    - name: Generate performance report
+      run: |
+        # تحلیل و تولید گزارش عملکرد
+        python .github/scripts/generate_performance_report.py
+
+    - name: Upload performance analysis
+      uses: actions/upload-artifact@v3
+      with:
+        name: performance-analysis-${{ github.run_id }}
+        path: performance_analysis.md
