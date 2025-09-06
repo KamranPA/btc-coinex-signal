@@ -1,94 +1,77 @@
-# main.py
-import pandas as pd
-import asyncio
+import time
+import schedule
 from datetime import datetime
-from coinex_api import fetch_data
-from strategy import apply_strategy
-from telegram_bot import send_report
-import config
+from services.coinex_api import CoinExAPI
+from services.telegram_bot import TelegramBot
+from strategies.mutanabby_strategy import MutanabbyStrategy
+from config.config import SYMBOLS, TIMEFRAME
+from utils.logger import setup_logger
 
-def calculate_risk_management(df):
-    trades = []
-    position = None
-    entry_price = None
-    tp1, tp2, tp3 = None, None, None
+logger = setup_logger()
 
-    for i, row in df.iterrows():
-        if pd.isna(row['ema150']) or pd.isna(row['ema250']):
-            continue
-
-        # باز کردن معامله خرید
-        if row['bull_signal'] and position != 'long':
-            position = 'long'
-            entry_price = row['close']
-            risk = abs(entry_price - row['supertrend'])  # حد ضرر
-            tp1 = entry_price + risk * 1
-            tp2 = entry_price + risk * 2
-            tp3 = entry_price + risk * 3
-            trades.append({
-                'entry_time': i,
-                'type': 'buy',
-                'entry_price': entry_price,
-                'tp1': tp1, 'tp2': tp2, 'tp3': tp3,
-                'pnl': None
-            })
-
-        # باز کردن معامله فروش
-        elif row['bear_signal'] and position != 'short':
-            position = 'short'
-            entry_price = row['close']
-            risk = abs(entry_price - row['supertrend'])
-            tp1 = entry_price - risk * 1
-            tp2 = entry_price - risk * 2
-            tp3 = entry_price - risk * 3
-            trades.append({
-                'entry_time': i,
-                'type': 'sell',
-                'entry_price': entry_price,
-                'tp1': tp1, 'tp2': tp2, 'tp3': tp3,
-                'pnl': None
-            })
-
-    return pd.DataFrame(trades)
-
-def calculate_summary(trades_df, df):
-    wins = len(trades_df[trades_df['pnl'] > 0])
-    losses = len(trades_df[trades_df['pnl'] < 0])
-    win_rate = (wins / (wins + losses)) * 100 if wins + losses > 0 else 0
-
-    # Drawdown ساده (اختلاف بین دو اوج)
-    equity_curve = df['close'].pct_change().cumsum()
-    running_max = equity_curve.cummax()
-    drawdown = (equity_curve - running_max).min() * 100
-
-    return {
-        'total_trades': len(trades_df),
-        'wins': wins,
-        'losses': losses,
-        'win_rate': win_rate,
-        'max_drawdown': abs(drawdown)
-    }
-
-async def main():
-    print("دریافت داده از CoinEx...")
-    df = fetch_data()
-    print(f"داده‌ها دریافت شد: {len(df)} کندل")
-
-    print("اعمال استراتژی...")
-    df = apply_strategy(df, config)
-
-    print("محاسبه معاملات...")
-    trades_df = calculate_risk_management(df)
-
-    print("محاسبه خلاصه...")
-    summary = calculate_summary(trades_df, df)
-
-    print("ارسال گزارش به تلگرام...")
-    await send_report(trades_df, summary, config)
-
-    # ذخیره معاملات
-    trades_df.to_csv("results/trades.csv", index=False)
-    print("بک‌تست کامل شد. نتایج در results/trades.csv ذخیره شد.")
+def run_signal_check():
+    logger.info("Starting signal check...")
+    
+    coinex_api = CoinExAPI()
+    telegram_bot = TelegramBot()
+    strategy = MutanabbyStrategy()
+    
+    for symbol in SYMBOLS:
+        try:
+            # دریافت داده‌های بازار
+            market_data = coinex_api.get_market_data(symbol, 'kline', 200, TIMEFRAME)
+            
+            if not market_data:
+                logger.warning(f"No data received for {symbol}")
+                continue
+            
+            # تبدیل به DataFrame
+            df = pd.DataFrame(market_data, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='s')
+            df.set_index('timestamp', inplace=True)
+            df['symbol'] = symbol
+            
+            # تبدیل مقادیر به عدد
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col])
+            
+            # تولید سیگنال‌ها
+            signals = strategy.generate_signals(df)
+            
+            # ارسال سیگنال‌های جدید
+            for signal in signals:
+                message = telegram_bot.format_signal_message(
+                    symbol=signal['symbol'],
+                    signal_type='خرید' if signal['type'] == 'BUY' else 'فروش',
+                    entry=round(signal['entry'], 4),
+                    sl=round(signal['sl'], 4),
+                    tp1=round(signal['tp1'], 4),
+                    tp2=round(signal['tp2'], 4),
+                    tp3=round(signal['tp3'], 4)
+                )
+                
+                if telegram_bot.send_message(message):
+                    logger.info(f"Signal sent for {symbol}")
+                else:
+                    logger.error(f"Failed to send signal for {symbol}")
+                
+                # تاخیر بین ارسال سیگنال‌ها
+                time.sleep(1)
+                
+        except Exception as e:
+            logger.error(f"Error processing {symbol}: {str(e)}")
+    
+    logger.info("Signal check completed")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    logger.info("CoinEx Signal Bot started")
+    
+    # اجرای اولیه
+    run_signal_check()
+    
+    # برنامه‌ریزی اجرای هر ۱۵ دقیقه
+    schedule.every(15).minutes.do(run_signal_check)
+    
+    while True:
+        schedule.run_pending()
+        time.sleep(1)
