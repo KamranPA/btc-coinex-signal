@@ -1,6 +1,6 @@
-ccxt
-pandas
-numpy
-python-telegram-bot
-ta
-python-dotenv
+requests==2.31.0
+pandas==2.0.3
+numpy==1.24.3
+python-dotenv==1.0.0
+schedule==1.2.0
+python-telegram-bot==13.7
