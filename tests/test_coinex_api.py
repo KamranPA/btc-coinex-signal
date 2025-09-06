@@ -71,4 +71,6 @@ class TestCoinExAPI:
         
         assert price == 29500.50
 
+# خطای تورفتگی اینجا رفع شده است
 if __name__ == "__main__":
+    pytest.main([__file__, "-v"])
