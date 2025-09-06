@@ -35,20 +35,23 @@ jobs:
         pip install -r requirements.txt
         pip install requests python-dotenv ta-lib
 
-    - name: Analyze MutanabbyStrategy class
+    - name: Analyze classes methods
       run: |
-        echo "=== Analyzing MutanabbyStrategy Class ==="
+        echo "=== Analyzing Class Methods ==="
         
-        if [ -f "strategies/mutanabby_strategy.py" ]; then
-            echo "MutanabbyStrategy class methods:"
-            grep -n "def " strategies/mutanabby_strategy.py
-            echo ""
-            echo "Class definition:"
-            grep -A 20 "class MutanabbyStrategy" strategies/mutanabby_strategy.py
+        echo "TelegramBot methods:"
+        if [ -f "services/telegram_bot.py" ]; then
+            grep -n "def " services/telegram_bot.py
         else
-            echo "strategies/mutanabby_strategy.py not found"
-            echo "Available strategy files:"
-            ls -la strategies/ 2>/dev/null || echo "strategies directory not found"
+            echo "telegram_bot.py not found"
+        fi
+        
+        echo ""
+        echo "MutanabbyStrategy methods:"
+        if [ -f "strategies/mutanabby_strategy.py" ]; then
+            grep -n "def " strategies/mutanabby_strategy.py
+        else
+            echo "mutanabby_strategy.py not found"
         fi
 
     - name: Create production main.py
@@ -88,25 +91,37 @@ jobs:
         echo "" >> main.py
         echo "        logger.info(\"✅ All components initialized\")" >> main.py
         echo "" >> main.py
-        echo "        # Execute strategy - try different method names" >> main.py
+        echo "        # Execute strategy - try different approaches" >> main.py
         echo "        logger.info(\"🔍 Analyzing market conditions...\")" >> main.py
         echo "        " >> main.py
         echo "        signals = None" >> main.py
-        echo "        method_names = ['execute', 'run', 'analyze', 'get_signals', 'generate_signals']" >> main.py
         echo "        " >> main.py
-        echo "        for method_name in method_names:" >> main.py
-        echo "            if hasattr(strategy, method_name):" >> main.py
-        echo "                try:" >> main.py
-        echo "                    method = getattr(strategy, method_name)" >> main.py
-        echo "                    signals = method()" >> main.py
-        echo "                    logger.info(f\"✅ Executed method: {method_name}\")" >> main.py
-        echo "                    break" >> main.py
-        echo "                except Exception as e:" >> main.py
-        echo "                    logger.warning(f\"⚠ Method {method_name} failed: {e}\")" >> main.py
+        echo "        # Try method with data parameter" >> main.py
+        echo "        if hasattr(strategy, 'generate_signals'):" >> main.py
+        echo "            try:" >> main.py
+        echo "                # Get market data first" >> main.py
+        echo "                market_data = api.get_market_data('BTCUSDT')" >> main.py
+        echo "                signals = strategy.generate_signals(market_data)" >> main.py
+        echo "                logger.info(\"✅ generate_signals with data executed\")" >> main.py
+        echo "            except Exception as e:" >> main.py
+        echo "                logger.warning(f\"⚠ generate_signals with data failed: {e}\")" >> main.py
+        echo "        " >> main.py
+        echo "        # Try other methods if still no signals" >> main.py
+        echo "        if signals is None:" >> main.py
+        echo "            method_names = ['execute', 'run', 'analyze', 'get_signals']" >> main.py
+        echo "            for method_name in method_names:" >> main.py
+        echo "                if hasattr(strategy, method_name):" >> main.py
+        echo "                    try:" >> main.py
+        echo "                        method = getattr(strategy, method_name)" >> main.py
+        echo "                        signals = method()" >> main.py
+        echo "                        logger.info(f\"✅ Executed method: {method_name}\")" >> main.py
+                        echo "                        break" >> main.py
+        echo "                    except Exception as e:" >> main.py
+        echo "                        logger.warning(f\"⚠ Method {method_name} failed: {e}\")" >> main.py
         echo "        " >> main.py
         echo "        if signals is None:" >> main.py
-        echo "            # اگر هیچ متدی پیدا نشد، خودمان سیگنال تست ایجاد کنیم" >> main.py
-        echo "            logger.warning(\"⚠ No standard method found, creating test signal\")" >> main.py
+        echo "            # اگر هیچ متدی کار نکرد، سیگنال تست ایجاد کنیم" >> main.py
+        echo "            logger.warning(\"⚠ No working method found, creating test signal\")" >> main.py
         echo "            signals = [" >> main.py
         echo "                {" >> main.py
         echo "                    'symbol': 'BTCUSDT'," >> main.py
@@ -121,10 +136,23 @@ jobs:
         echo "        if signals and len(signals) > 0:" >> main.py
         echo "            logger.info(f\"🎯 Found {len(signals)} signals\")" >> main.py
         echo "            " >> main.py
-        echo "            # Send signals via Telegram" >> main.py
+        echo "            # Send signals via Telegram - try different method names" >> main.py
         echo "            if '--test' not in sys.argv:" >> main.py
-        echo "                telegram_bot.send_signals(signals)" >> main.py
-        echo "                logger.info(\"📤 Signals sent to Telegram\")" >> main.py
+        echo "                telegram_methods = ['send_signals', 'send_message', 'send_signal', 'notify']" >> main.py
+        echo "                sent = False" >> main.py
+        echo "                for method_name in telegram_methods:" >> main.py
+        echo "                    if hasattr(telegram_bot, method_name):" >> main.py
+        echo "                        try:" >> main.py
+        echo "                            method = getattr(telegram_bot, method_name)" >> main.py
+        echo "                            method(signals)" >> main.py
+        echo "                            logger.info(f\"📤 Signals sent via {method_name}\")" >> main.py
+        echo "                            sent = True" >> main.py
+        echo "                            break" >> main.py
+        echo "                        except Exception as e:" >> main.py
+        echo "                            logger.warning(f\"⚠ Telegram method {method_name} failed: {e}\")" >> main.py
+        echo "                " >> main.py
+        echo "                if not sent:" >> main.py
+        echo "                    logger.error(\"❌ No working Telegram method found\")" >> main.py
         echo "            else:" >> main.py
         echo "                logger.info(\"🧪 Test mode - Signals not sent\")" >> main.py
         echo "                for signal in signals:" >> main.py
