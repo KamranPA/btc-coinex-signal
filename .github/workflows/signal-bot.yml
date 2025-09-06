@@ -1,64 +1,22 @@
-name: Simple CoinEx Bot
+name: CoinEx Signal Bot
 
 on:
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'Run Mode'
-        required: true
-        default: 'test'
-        type: choice
-        options:
-          - test
-          - debug
-          - production
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.9'
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
 
-    - name: Install packages
-      run: pip install requests pandas numpy
-
-    - name: Show files
-      run: |
-        echo "📁 Files in repository:"
-        ls -la
-        echo ""
-        echo "📦 Services files:"
-        ls -la services/ || echo "No services directory"
-
-    - name: Run simple test
-      run: |
-        echo "🤖 Running CoinEx Bot"
-        echo "📍 Mode: ${{ github.event.inputs.mode }}"
-        echo "✅ Python is working"
-        python -c "
-print('Testing imports...')
-try:
-    import requests
-    print('✅ requests imported')
-except:
-    print('❌ requests failed')
-try:
-    import pandas
-    print('✅ pandas imported')
-except:
-    print('❌ pandas failed')
-try:
-    import numpy
-    print('✅ numpy imported')
-except:
-    print('❌ numpy failed')
-        "
-
-    - name: Complete
-      run: echo "🎉 Workflow completed!"
+      - name: Run simple test
+        run: |
+          echo "🤖 CoinEx Bot Started"
+          echo "✅ Workflow is working"
+          python -c "print('Python is ready!')"
