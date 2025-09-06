@@ -2,14 +2,29 @@ import time
 import pandas as pd
 import numpy as np
 import argparse
-from services.coinex_api import CoinExAPI
-from services.telegram_bot import TelegramBot
-from services.debug_service import DebugService
-from strategies.mutanabby_strategy import MutanabbyStrategy
-from config.config import SYMBOLS, TIMEFRAME
-from config.logging_config import setup_logging, get_logger
-from utils.error_handler import error_handler
-from utils.performance_monitor import performance_monitor
+import sys
+import os
+
+# اضافه کردن مسیرهای پروژه به sys.path
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+try:
+    from services.coinex_api import CoinExAPI
+    from services.telegram_bot import TelegramBot
+    from services.debug_service import DebugService
+    from strategies.mutanabby_strategy import MutanabbyStrategy
+    from config.config import SYMBOLS, TIMEFRAME
+    from config.logging_config import setup_logging, get_logger
+    from utils.error_handler import error_handler
+    from utils.performance_monitor import performance_monitor
+except ImportError as e:
+    print(f"Import error: {e}")
+    print("Current working directory:", os.getcwd())
+    print("Files in current directory:", os.listdir('.'))
+    if os.path.exists('services'):
+        print("Files in services directory:", os.listdir('services'))
+    sys.exit(1)
+
 import json
 
 # تنظیم لاگینگ
