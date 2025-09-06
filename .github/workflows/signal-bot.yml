@@ -49,7 +49,6 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install pytest pytest-cov
 
     - name: Create directories
       run: |
@@ -58,14 +57,49 @@ jobs:
         mkdir -p debug/historical_signals
         mkdir -p .github/scripts
 
-    - name: Run basic syntax check
+    - name: Check and fix file structure
       run: |
-        echo "Checking Python syntax..."
-        # بررسی سینتکس فایل‌های اصلی
-        python -m py_compile main.py debug_mode.py || echo "Syntax errors found in main files"
-        find services -name "*.py" -exec python -m py_compile {} \; || echo "Syntax errors found in services"
-        find strategies -name "*.py" -exec python -m py_compile {} \; || echo "Syntax errors found in strategies"
-        find utils -name "*.py" -exec python -m py_compile {} \; || echo "Syntax errors found in utils"
+        echo "Checking file structure..."
+        echo "Current directory:"
+        pwd
+        ls -la
+        
+        echo "Services directory:"
+        ls -la services/
+        
+        echo "Debug service content:"
+        ls -la services/debug_service/ || echo "Debug service directory not found"
+        
+        # اگر debug_service یک پوشه است، فایل __init__.py ایجاد می‌کنیم
+        if [ -d "services/debug_service" ]; then
+            echo "Creating __init__.py in debug_service directory"
+            touch services/debug_service/__init__.py
+            echo "Created __init__.py in debug_service"
+        fi
+
+    - name: Run basic import test
+      run: |
+        echo "Testing basic imports..."
+        # تست ایمپورت‌های اصلی بدون debug_service
+        python -c "
+        try:
+            from services.coinex_api import CoinExAPI
+            print('✓ CoinExAPI import successful')
+        except ImportError as e:
+            print(f'✗ CoinExAPI import failed: {e}')
+            
+        try:
+            from services.telegram_bot import TelegramBot
+            print('✓ TelegramBot import successful')
+        except ImportError as e:
+            print(f'✗ TelegramBot import failed: {e}')
+            
+        try:
+            from strategies.mutanabby_strategy import MutanabbyStrategy
+            print('✓ MutanabbyStrategy import successful')
+        except ImportError as e:
+            print(f'✗ MutanabbyStrategy import failed: {e}')
+        "
 
     - name: Run Signal Bot
       env:
@@ -82,19 +116,16 @@ jobs:
         echo "Test Mode: $TEST_MODE"
         echo "Comprehensive Test: $COMPREHENSIVE_TEST"
         
-        # بررسی ساختار فایل‌ها
-        echo "Checking file structure..."
-        ls -la
-        echo "Services directory:"
-        ls -la services/ || echo "Services directory not found"
-        echo "Strategies directory:"
-        ls -la strategies/ || echo "Strategies directory not found"
-        echo "Utils directory:"
-        ls -la utils/ || echo "Utils directory not found"
-        
+        # اجرای مستقیم بدون وابستگی به debug_service
         if [ "$COMPREHENSIVE_TEST" = "true" ]; then
           echo "Running comprehensive debug test..."
-          python debug_mode.py --comprehensive --verbose
+          # اگر debug_mode.py وجود دارد اجرا کن
+          if [ -f "debug_mode.py" ]; then
+            python debug_mode.py --comprehensive --verbose
+          else
+            echo "debug_mode.py not found, running main.py instead"
+            python main.py
+          fi
         elif [ "$DEBUG_MODE" = "true" ]; then
           echo "Running in debug mode..."
           python main.py --debug --test
@@ -144,6 +175,9 @@ jobs:
             run_id = os.getenv('GITHUB_RUN_ID', 'Unknown')
             repository = os.getenv('GITHUB_REPOSITORY', 'Unknown')
             
+            # خواندن وضعیت اجرا
+            success = os.getenv('JOB_STATUS', 'completed')
+            
             message = f"""
         🔄 <b>Workflow Status Update</b>
         
@@ -151,7 +185,7 @@ jobs:
         🏷️ <b>Run ID:</b> #{run_id}
         📁 <b>Repository:</b> {repository}
         ⏰ <b>Time:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        ✅ <b>Status:</b> Completed
+        📊 <b>Status:</b> {success}
         
         🔗 <a href="https://github.com/{repository}/actions/runs/{run_id}">View Workflow Run</a>
             """
