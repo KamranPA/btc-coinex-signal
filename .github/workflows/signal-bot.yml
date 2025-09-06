@@ -37,10 +37,10 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  # ارتقا به نسخه v4
 
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5  # ارتقا به نسخه v5
       with:
         python-version: '3.9'
         cache: 'pip'
@@ -87,7 +87,7 @@ jobs:
 
     - name: Upload debug reports
       if: always() && (github.event.inputs.debug_mode == 'true' || github.event.inputs.comprehensive_test == 'true')
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # ارتقا به نسخه v4
       with:
         name: debug-reports-${{ github.run_id }}
         path: |
@@ -97,7 +97,7 @@ jobs:
 
     - name: Upload performance logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # ارتقا به نسخه v4
       with:
         name: performance-logs-${{ github.run_id }}
         path: logs/performance_report.json
@@ -119,10 +119,10 @@ jobs:
     
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4  # ارتقا به نسخه v4
 
     - name: Download performance logs
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4  # ارتقا به نسخه v4
       with:
         name: performance-logs-${{ github.run_id }}
 
@@ -132,7 +132,7 @@ jobs:
         python .github/scripts/generate_performance_report.py
 
     - name: Upload performance analysis
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # ارتقا به نسخه v4
       with:
         name: performance-analysis-${{ github.run_id }}
         path: performance_analysis.md
