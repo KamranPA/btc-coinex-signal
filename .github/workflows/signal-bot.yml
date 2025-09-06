@@ -1,4 +1,4 @@
-name: CoinEx Signal Bot with Structure Check
+name: CoinEx Signal Bot
 
 on:
   schedule:
@@ -21,58 +21,47 @@ on:
         options:
         - 'true'
         - 'false'
-      comprehensive_test:
-        description: 'Run comprehensive debug test'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-        - 'true'
-        - 'false'
 
 jobs:
   check-structure:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Analyze project structure
+    - name: Analyze basic structure
       run: |
         echo "🔍 Analyzing project structure..."
         echo ""
-        echo "📁 Current working directory: $(pwd)"
+        echo "📁 Current directory: $(pwd)"
         echo ""
         
-        echo "📊 Full directory structure:"
-        ls -la
-        echo ""
-        
-        echo "🧩 Checking required directories:"
-        for dir in services strategies utils config debug logs tests .github/scripts; do
+        # بررسی دایرکتوری‌های اصلی
+        echo "📂 Directory check:"
+        directories=("services" "strategies" "utils" "config" "tests")
+        for dir in "${directories[@]}"; do
           if [ -d "$dir" ]; then
-            echo "✅ Directory exists: $dir"
-            echo "   Files in $dir: $(ls -1 $dir | tr '\n' ' ')"
+            echo "✅ $dir/"
+            echo "   Files: $(ls -1 "$dir" 2>/dev/null | tr '\n' ' ' || echo 'None')"
           else
-            echo "❌ Directory missing: $dir"
+            echo "❌ $dir/ (missing)"
           fi
-          echo ""
         done
-        
-        echo "📄 Checking required files:"
-        required_files=(
+        echo ""
+
+    - name: Check Python files
+      run: |
+        echo "🐍 Python files check:"
+        important_files=(
           "main.py"
           "config/config.py"
           "services/coinex_api.py"
           "services/telegram_bot.py"
-          "services/debug_service.py"
           "strategies/mutanabby_strategy.py"
-          "utils/error_handler.py"
-          "utils/performance_monitor.py"
-          "utils/logger.py"
           "requirements.txt"
         )
         
-        for file in
+        for file in "${important_files[@]}"; do
+         
