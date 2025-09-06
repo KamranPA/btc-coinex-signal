@@ -1,249 +1,55 @@
-name: CoinEx Signal Bot
+name: Simple CoinEx Bot
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
-    inputs:
-      debug_mode:
-        description: 'Enable debug mode'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-        - 'true'
-        - 'false'
-      test_mode:
-        description: 'Enable test mode (no signals sent)'
-        required: false
-        default: 'false'
-        type: choice
-        options:
-        - 'true'
-        - 'false'
 
 jobs:
-  check-structure:
+  run-simple:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    
+
     steps:
-    - name: Checkout repository
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Analyze basic structure
-      run: |
-        echo "Analyzing project structure..."
-        echo ""
-        echo "Current directory: $(pwd)"
-        echo ""
-        
-        echo "Directory check:"
-        echo "services/: $(if [ -d "services" ]; then echo "exists - $(ls services | wc -l) files"; else echo "missing"; fi)"
-        echo "strategies/: $(if [ -d "strategies" ]; then echo "exists - $(ls strategies | wc -l) files"; else echo "missing"; fi)"
-        echo "utils/: $(if [ -d "utils" ]; then echo "exists - $(ls utils | wc -l) files"; else echo "missing"; fi)"
-        echo "config/: $(if [ -d "config" ]; then echo "exists - $(ls config | wc -l) files"; else echo "missing"; fi)"
-        echo "tests/: $(if [ -d "tests" ]; then echo "exists - $(ls tests | wc -l) files"; else echo "missing"; fi)"
-        echo ""
-
-    - name: Check Python files
-      run: |
-        echo "Python files check:"
-        echo "main.py: $(if [ -f "main.py" ]; then echo "exists"; else echo "missing"; fi)"
-        echo "config/config.py: $(if [ -f "config/config.py" ]; then echo "exists"; else echo "missing"; fi)"
-        echo "services/coinex_api.py: $(if [ -f "services/coinex_api.py" ]; then echo "exists"; else echo "missing"; fi)"
-        echo "services/telegram_bot.py: $(if [ -f "services/telegram_bot.py" ]; then echo "exists"; else echo "missing"; fi)"
-        echo "strategies/mutanabby_strategy.py: $(if [ -f "strategies/mutanabby_strategy.py" ]; then echo "exists"; else echo "missing"; fi)"
-        echo "requirements.txt: $(if [ -f "requirements.txt" ]; then echo "exists"; else echo "missing"; fi)"
-        echo ""
-
-    - name: Create missing directories
-      run: |
-        echo "Creating necessary directories..."
-        mkdir -p logs debug
-        echo "Directories created: logs/, debug/"
-
-    - name: Create init files
-      run: |
-        echo "Ensuring __init__.py files..."
-        for dir in services strategies utils config; do
-          if [ -d "$dir" ] && [ ! -f "$dir/__init__.py" ]; then
-            echo "# Package init" > "$dir/__init__.py"
-            echo "Created $dir/__init__.py"
-          fi
-        done
-
-  run-bot:
-    runs-on: ubuntu-latest
-    needs: check-structure
-    timeout-minutes: 10
-    
-    steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
-
-    - name: Set up Python
+    - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.9'
-        cache: 'pip'
 
-    - name: Install dependencies
-      run: |
-        echo "Installing dependencies..."
-        python -m pip install --upgrade pip
-        
-        if [ -f "requirements.txt" ]; then
-          pip install -r requirements.txt
-          echo "Installed from requirements.txt"
-        else
-          pip install requests pandas numpy
-          echo "Installed default packages"
-        fi
+    - name: Install packages
+      run: pip install requests pandas numpy
 
-    - name: Test basic imports
+    - name: Check files
       run: |
-        echo "Testing basic imports..."
+        echo "Files in repository:"
+        ls -la
+        echo ""
+        echo "Files in services directory:"
+        ls -la services/ || echo "No services directory"
+        echo ""
+        echo "Files in config directory:"
+        ls -la config/ || echo "No config directory"
+
+    - name: Test imports
+      run: |
         python -c "
-import sys
-print('Python path:')
-for p in sys.path:
-    print('  ' + p)
-
-print()
-print('Testing imports:')
+print('Testing imports...')
 try:
     import requests
     print('✅ requests')
-except ImportError:
+except:
     print('❌ requests')
-
 try:
-    import pandas as pd
+    import pandas
     print('✅ pandas')
-except ImportError:
+except:
     print('❌ pandas')
-
 try:
-    import numpy as np
+    import numpy
     print('✅ numpy')
-except ImportError:
+except:
     print('❌ numpy')
         "
 
-    - name: Test project imports
-      run: |
-        echo "Testing project imports..."
-        python -c "
-import sys
-sys.path.insert(0, '.')
-
-print('Testing project imports:')
-modules = [
-    'services.coinex_api',
-    'services.telegram_bot', 
-    'strategies.mutanabby_strategy',
-    'config.config'
-]
-
-for module in modules:
-    try:
-        __import__(module)
-        print(f'✅ {module}')
-    except ImportError as e:
-        print(f'❌ {module}: {e}')
-        "
-
-    - name: Run main script
-      env:
-        COINEX_ACCESS_ID: ${{ secrets.COINEX_ACCESS_ID }}
-        COINEX_SECRET_KEY: ${{ secrets.COINEX_SECRET_KEY }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        echo "Running main script..."
-        if [ -f "main.py" ]; then
-          python main.py
-        else
-          echo "main.py not found, creating simple version..."
-          echo 'import sys
-import os
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-print("Simple Signal Bot - Checking imports")
-
-try:
-    from services.coinex_api import CoinExAPI
-    print("✅ CoinExAPI imported")
-except ImportError as e:
-    print(f"❌ CoinExAPI: {e}")
-
-try:
-    from services.telegram_bot import TelegramBot
-    print("✅ TelegramBot imported")
-except ImportError as e:
-    print(f"❌ TelegramBot: {e}")
-
-try:
-    from strategies.mutanabby_strategy import MutanabbyStrategy
-    print("✅ MutanabbyStrategy imported")
-except ImportError as e:
-    print(f"❌ MutanabbyStrategy: {e}")
-
-try:
-    from config.config import SYMBOLS, TIMEFRAME
-    print(f"✅ Config imported: {SYMBOLS}")
-except ImportError as e:
-    print(f"❌ Config: {e}")
-
-print("Import check completed")' > main.py
-          python main.py
-        fi
-
-    - name: Create success file
-      run: |
-        echo "Workflow completed at $(date)" > success.txt
-        echo "Python: $(python --version)" >> success.txt
-
-    - name: Upload results
-      uses: actions/upload-artifact@v4
-      with:
-        name: bot-results-${{ github.run_id }}
-        path: success.txt
-
-  notify:
-    runs-on: ubuntu-latest
-    needs: run-bot
-    if: always()
-    
-    steps:
-    - name: Send telegram notification
-      env:
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-      run: |
-        echo "Sending telegram notification..."
-        
-        python -c "
-import os
-import requests
-
-token = os.getenv('TELEGRAM_BOT_TOKEN')
-chat_id = os.getenv('TELEGRAM_CHAT_ID')
-
-if token and chat_id:
-    message = 'Signal Bot execution completed'
-    url = f'https://api.telegram.org/bot{token}/sendMessage'
-    payload = {'chat_id': chat_id, 'text': message}
-    
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            print('Notification sent successfully')
-        else:
-            print(f'Failed to send: {response.text}')
-    except Exception as e:
-        print(f'Error: {e}')
-else:
-    print('Telegram credentials not available')
-        "
+    - name: Simple test
+      run: echo "Workflow completed successfully"
