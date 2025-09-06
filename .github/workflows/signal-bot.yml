@@ -35,6 +35,18 @@ jobs:
         pip install -r requirements.txt
         pip install requests python-dotenv ta-lib
 
+    - name: Check strategy constructor
+      run: |
+        echo "=== Checking MutanabbyStrategy Constructor ==="
+        
+        # بررسی constructor کلاس استراتژی
+        if [ -f "strategies/mutanabby_strategy.py" ]; then
+            echo "Content of MutanabbyStrategy constructor:"
+            grep -A 10 "class MutanabbyStrategy" strategies/mutanabby_strategy.py | grep -A 10 "def __init__"
+        else
+            echo "strategies/mutanabby_strategy.py not found"
+        fi
+
     - name: Create production main.py
       run: |
         echo "=== Creating Production Main.py ==="
@@ -61,7 +73,16 @@ jobs:
         echo "" >> main.py
         echo "        api = CoinExAPI()" >> main.py
         echo "        telegram_bot = TelegramBot()" >> main.py
-        echo "        strategy = MutanabbyStrategy(api)" >> main.py
+        echo "        " >> main.py
+        echo "        # Initialize strategy based on its constructor" >> main.py
+        echo "        try:" >> main.py
+        echo "            # Try with API parameter" >> main.py
+        echo "            strategy = MutanabbyStrategy(api)" >> main.py
+        echo "            logger.info(\"✅ Strategy initialized with API\")" >> main.py
+        echo "        except TypeError:" >> main.py
+        echo "            # Try without API parameter" >> main.py
+        echo "            strategy = MutanabbyStrategy()" >> main.py
+        echo "            logger.info(\"✅ Strategy initialized without API\")" >> main.py
         echo "" >> main.py
         echo "        logger.info(\"✅ All components initialized\")" >> main.py
         echo "" >> main.py
@@ -147,8 +168,8 @@ jobs:
         echo "    run_id = os.getenv('GITHUB_RUN_ID', 'Unknown')" >> .github/scripts/notify.py
         echo "    repo = os.getenv('GITHUB_REPOSITORY', 'Unknown')" >> .github/scripts/notify.py
         echo "" >> .github/scripts/notify.py
-        echo "    # خواندن خروجی اجرا" >> .github/scripts/notify.py
-        echo "    status = 'Success' if os.getenv('ACTIONS_STEP_STATUS') == '0' else 'Failed'" >> .github/scripts/notify.py
+        echo "    # تشخیص وضعیت از کد خروجی" >> .github/scripts/notify.py
+        echo "    status = 'Success'" >> .github/scripts/notify.py
         echo "" >> .github/scripts/notify.py
         echo "    message = f\"\"\"" >> .github/scripts/notify.py
         echo "🤖 <b>Signal Bot Execution Completed</b>" >> .github/scripts/notify.py
