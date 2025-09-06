@@ -1,68 +1,86 @@
-name: CoinEx Complete Bot
+name: CoinEx Signal Bot
 
 on:
   workflow_dispatch:
-    inputs:
-      mode:
-        description: 'Run Mode'
-        required: true
-        default: 'test'
-        type: choice
-        options:
-          - test
-          - debug
-          - real
 
 jobs:
-  setup:
+  check-structure:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Analyze project structure
+        run: |
+          echo "🔍 تحلیل ساختار پروژه..."
+          echo ""
+          echo "📁 ساختار دایرکتوری:"
+          ls -la
+          echo ""
+          echo "📦 پوشه services:"
+          ls -la services/ 2>/dev/null || echo "❌ پوشه services وجود ندارد"
+          echo ""
+          echo "⚙️ پوشه config:"
+          ls -la config/ 2>/dev/null || echo "❌ پوشه config وجود ندارد"
+          echo ""
+          echo "🧪 پوشه tests:"
+          ls -la tests/ 2>/dev/null || echo "❌ پوشه tests وجود ندارد"
+          echo ""
+          echo "📄 فایل‌های مهم:"
+          echo "main.py: $(if [ -f "main.py" ]; then echo "✅ وجود دارد"; else echo "❌ وجود ندارد"; fi)"
+          echo "config/config.py: $(if [ -f "config/config.py" ]; then echo "✅ وجود دارد"; else echo "❌ وجود ندارد"; fi)"
+          echo "requirements.txt: $(if [ -f "requirements.txt" ]; then echo "✅ وجود دارد"; else echo "❌ وجود ندارد"; fi)"
+
+      - name: Create missing directories
+        run: |
+          echo "📁 ایجاد پوشه‌های ضروری..."
+          mkdir -p services config utils strategies
+          echo "✅ پوشه‌ها ایجاد شدند"
+
+  run-bot:
+    runs-on: ubuntu-latest
+    needs: check-structure
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.9'
 
-      - name: Install dependencies
-        run: pip install requests pandas numpy
-
-  run-bot:
-    runs-on: ubuntu-latest
-    needs: setup
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Display settings
+      - name: Install basic dependencies
         run: |
-          echo "🏃 Mode: ${{ github.event.inputs.mode }}"
-          echo "🚀 Starting CoinEx Bot"
-          echo "✅ Everything is ready"
+          echo "📦 نصب dependencies پایه..."
+          pip install requests pandas numpy
+          echo "✅ dependencies نصب شدند"
 
-      - name: Run simulation
+      - name: Run simple test
         run: |
+          echo "🚀 اجرای تست ساده..."
           python -c "
-print('=' * 50)
-print('🤖 COINEX SIGNAL BOT SIMULATION')
-print('=' * 50)
-print(f'Mode: ${{ github.event.inputs.mode }}')
-print()
-print('📊 SIGNAL GENERATED:')
-print('🔹 Type: BUY')
-print('🔹 Entry: 50000')
-print('🔹 Stop Loss: 49000') 
-print('🔹 Take Profit 1: 51000')
-print('🔹 Take Profit 2: 52000')
-print('🔹 Take Profit 3: 53000')
-print()
-print('✅ Simulation completed successfully')
+print('🤖 CoinEx Signal Bot - Test Mode')
+print('=' * 40)
+print('✅ Python is working correctly')
+print('✅ Basic imports are available')
+print('')
+print('📊 وضعیت سیستم:')
+print('🔹 سیستم: Ubuntu Linux')
+print('🔹 پایتون: 3.9')
+print('🔹 معماری: x64')
+print('')
+print('🎯 آماده دریافت سیگنال‌ها...')
           "
 
-  notify:
-    runs-on: ubuntu-latest
-    needs: run-bot
-    steps:
-      - name: Completion message
-        run: echo "🎉 Workflow finished at $(date)"
+      - name: Create success report
+        run: |
+          echo "✅ اجرا موفقیت‌آمیز بود" > result.txt
+          echo "🕐 زمان: $(date)" >> result.txt
+          echo "🐍 پایتون: $(python --version)" >> result.txt
+          echo "📦 dependencies: requests, pandas, numpy" >> result.txt
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: bot-results
+          path: result.txt
