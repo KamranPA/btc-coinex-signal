@@ -1,132 +1,249 @@
 import pandas as pd
 import numpy as np
-from config.config import SENSITIVITY, SIGNAL_TUNER, STOP_LOSS_MULTIPLIER, RISK_REWARD_RATIOS
+from typing import List, Dict, Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 class MutanabbyStrategy:
     def __init__(self):
-        self.sensitivity = SENSITIVITY
-        self.signal_tuner = SIGNAL_TUNER
-        
-    def calculate_ema(self, data, period):
-        return data['close'].ewm(span=period, adjust=False).mean()
+        self.name = "Mutanabby Trading Strategy"
+        print("✅ استراتژی Mutanabby بارگذاری شد")
     
-    def calculate_atr(self, data, period=14):
-        high_low = data['high'] - data['low']
-        high_close = np.abs(data['high'] - data['close'].shift())
-        low_close = np.abs(data['low'] - data['close'].shift())
-        
-        ranges = pd.concat([high_low, high_close, low_close], axis=1)
-        true_range = np.max(ranges, axis=1)
-        
-        return true_range.rolling(period).mean()
-    
-    def calculate_supertrend(self, data, period=10, multiplier=3):
-        # محاسبه ATR
-        atr = self.calculate_atr(data, period)
-        
-        # محاسبات سوپرترند
-        hl2 = (data['high'] + data['low']) / 2
-        basic_upper = hl2 + (multiplier * atr)
-        basic_lower = hl2 - (multiplier * atr)
-        
-        # محاسبه نهایی سوپرترند
-        close = data['close']
-        supertrend = pd.Series(index=data.index, dtype=float)
-        direction = pd.Series(index=data.index, dtype=int)
-        
-        for i in range(1, len(data)):
-            if close.iloc[i] > basic_upper.iloc[i-1]:
-                supertrend.iloc[i] = basic_lower.iloc[i]
-                direction.iloc[i] = 1  # روند صعودی
-            elif close.iloc[i] < basic_lower.iloc[i-1]:
-                supertrend.iloc[i] = basic_upper.iloc[i]
-                direction.iloc[i] = -1  # روند نزولی
-            else:
-                supertrend.iloc[i] = supertrend.iloc[i-1]
-                direction.iloc[i] = direction.iloc[i-1]
+    def safe_data_access(self, data: Any, symbol: str = '') -> Optional[List[Dict]]:
+        """
+        دسترسی ایمن به داده‌ها - رفع خطای list indices must be integers or slices, not str
+        """
+        try:
+            if data is None:
+                logger.warning(f"داده‌های {symbol} None است")
+                return None
+            
+            # اگر داده لیست است
+            if isinstance(data, list):
+                if len(data) == 0:
+                    logger.warning(f"لیست داده‌های {symbol} خالی است")
+                    return None
                 
-                if supertrend.iloc[i] == basic_upper.iloc[i-1] and basic_upper.iloc[i] < supertrend.iloc[i]:
-                    supertrend.iloc[i] = basic_upper.iloc[i]
-                elif supertrend.iloc[i] == basic_upper.iloc[i-1] and basic_upper.iloc[i] >= supertrend.iloc[i]:
-                    supertrend.iloc[i] = basic_upper.iloc[i]
-                elif supertrend.iloc[i] == basic_lower.iloc[i-1] and basic_lower.iloc[i] > supertrend.iloc[i]:
-                    supertrend.iloc[i] = basic_lower.iloc[i]
-                elif supertrend.iloc[i] == basic_lower.iloc[i-1] and basic_lower.iloc[i] <= supertrend.iloc[i]:
-                    supertrend.iloc[i] = basic_lower.iloc[i]
-        
-        return supertrend, direction
+                # بررسی نوع آیتم‌های لیست
+                first_item = data[0]
+                if isinstance(first_item, dict):
+                    logger.info(f"داده‌های {symbol} معتبر است (لیست دیکشنری)")
+                    return data
+                elif isinstance(first_item, (list, tuple)):
+                    logger.info(f"داده‌های {symbol} لیست لیست است - تبدیل به دیکشنری")
+                    return self.convert_list_to_dict(data, symbol)
+                else:
+                    logger.error(f"نوع آیتم‌های لیست نامعتبر برای {symbol}: {type(first_item)}")
+                    return None
+            
+            # اگر داده دیکشنری است
+            elif isinstance(data, dict):
+                logger.info(f"داده‌های {symbol} دیکشنری است. کلیدها: {list(data.keys())}")
+                
+                # جستجوی کلیدهای معمول حاوی داده
+                possible_keys = ['data', 'result', 'candles', 'klines', 'series', 'items', 'values']
+                
+                for key in possible_keys:
+                    if key in data:
+                        key_data = data[key]
+                        if isinstance(key_data, list):
+                            if len(key_data) > 0:
+                                logger.info(f"داده لیستی در کلید '{key}' یافت شد")
+                                return key_data
+                
+                logger.error(f"هیچ داده لیستی در دیکشنری {symbol} یافت نشد")
+                return None
+            
+            else:
+                logger.error(f"نوع داده نامعتبر برای {symbol}: {type(data)}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"خطا در پردازش داده‌های {symbol}: {e}")
+            return None
     
-    def calculate_macd(self, data, fast=12, slow=26, signal=9):
-        ema_fast = data['close'].ewm(span=fast, adjust=False).mean()
-        ema_slow = data['close'].ewm(span=slow, adjust=False).mean()
-        macd = ema_fast - ema_slow
-        signal_line = macd.ewm(span=signal, adjust=False).mean()
-        histogram = macd - signal_line
-        
-        return macd, signal_line, histogram
+    def convert_list_to_dict(self, data_list: List, symbol: str = '') -> List[Dict]:
+        """تبدیل لیست به دیکشنری"""
+        try:
+            if not data_list or len(data_list) == 0:
+                return []
+            
+            first_item = data_list[0]
+            
+            # اگر لیست از لیست‌ها است (فرمت استاندارد کندل)
+            if isinstance(first_item, (list, tuple)) and len(first_item) >= 6:
+                formatted_data = []
+                for item in data_list:
+                    if len(item) >= 6:
+                        formatted_data.append({
+                            'timestamp': item[0],
+                            'open': float(item[1]),
+                            'high': float(item[2]),
+                            'low': float(item[3]),
+                            'close': float(item[4]),
+                            'volume': float(item[5]),
+                            'symbol': symbol
+                        })
+                return formatted_data
+            
+            return data_list
+            
+        except Exception as e:
+            logger.error(f"خطا در تبدیل لیست به دیکشنری برای {symbol}: {e}")
+            return []
     
-    def generate_signals(self, data):
+    def generate_signals(self, market_data: Any) -> List[Dict[str, Any]]:
+        """
+        تولید سیگنال‌های معاملاتی - نسخه اصلاح شده
+        """
+        try:
+            # اعتبارسنجی و پردازش داده‌ها
+            processed_data = self.safe_data_access(market_data, 'unknown_symbol')
+            
+            if processed_data is None or len(processed_data) < 50:
+                logger.warning("داده‌های ناکافی برای تولید سیگنال")
+                return []
+            
+            # تبدیل به DataFrame برای پردازش
+            df = pd.DataFrame(processed_data)
+            
+            # اطمینان از وجود ستون‌های ضروری
+            required_columns = ['timestamp', 'open', 'high', 'low', 'close', 'volume']
+            for col in required_columns:
+                if col not in df.columns:
+                    logger.error(f"ستون ضروری '{col}' در داده‌ها وجود ندارد")
+                    return []
+            
+            # تبدیل تاریخ و تنظیم ایندکس
+            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df.set_index('timestamp', inplace=True)
+            
+            # تبدیل مقادیر به عدد
+            for col in ['open', 'high', 'low', 'close', 'volume']:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            df = df.dropna()
+            
+            if len(df) < 50:
+                logger.warning("داده‌های کافی پس از پاکسازی وجود ندارد")
+                return []
+            
+            # محاسبه اندیکاتورها
+            df = self.calculate_indicators(df)
+            
+            # تولید سیگنال‌ها
+            signals = self.analyze_signals(df)
+            
+            logger.info(f"تعداد سیگنال‌های تولید شده: {len(signals)}")
+            return signals
+            
+        except Exception as e:
+            logger.error(f"خطا در generate_signals: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return []
+    
+    def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
+        """محاسبه اندیکاتورهای تکنیکال"""
+        try:
+            # میانگین متحرک
+            df['sma_20'] = df['close'].rolling(window=20).mean()
+            df['sma_50'] = df['close'].rolling(window=50).mean()
+            df['sma_100'] = df['close'].rolling(window=100).mean()
+            
+            # RSI
+            df['rsi'] = self.calculate_rsi(df['close'], 14)
+            
+            # MACD
+            exp12 = df['close'].ewm(span=12, adjust=False).mean()
+            exp26 = df['close'].ewm(span=26, adjust=False).mean()
+            df['macd'] = exp12 - exp26
+            df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
+            df['macd_histogram'] = df['macd'] - df['macd_signal']
+            
+            # بولینگر باندز
+            df['bb_middle'] = df['close'].rolling(window=20).mean()
+            bb_std = df['close'].rolling(window=20).std()
+            df['bb_upper'] = df['bb_middle'] + (bb_std * 2)
+            df['bb_lower'] = df['bb_middle'] - (bb_std * 2)
+            
+            return df
+            
+        except Exception as e:
+            logger.error(f"خطا در محاسبه اندیکاتورها: {e}")
+            return df
+    
+    def calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
+        """محاسبه RSI"""
+        try:
+            delta = prices.diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / loss
+            rsi = 100 - (100 / (1 + rs))
+            return rsi
+        except:
+            return pd.Series([50] * len(prices), index=prices.index)
+    
+    def analyze_signals(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
+        """تحلیل سیگنال‌ها بر اساس اندیکاتورها"""
         signals = []
         
-        # محاسبه اندیکاتورها
-        data['ema_150'] = self.calculate_ema(data, 150)
-        data['ema_250'] = self.calculate_ema(data, 250)
-        data['supertrend'], data['supertrend_dir'] = self.calculate_supertrend(data, self.signal_tuner, self.sensitivity)
-        data['macd'], data['macd_signal'], data['macd_hist'] = self.calculate_macd(data)
-        
-        # شناسایی سیگنال‌ها
-        for i in range(2, len(data)):
-            current = data.iloc[i]
-            prev = data.iloc[i-1]
+        try:
+            # دریافت آخرین داده
+            latest = df.iloc[-1]
+            prev = df.iloc[-2] if len(df) > 1 else latest
             
-            # شرایط سیگنال خرید
-            buy_condition = (
-                current['close'] > current['supertrend'] and
-                prev['close'] <= prev['supertrend'] and
-                current['macd'] > current['macd_signal'] and
-                current['ema_150'] > current['ema_250']
-            )
+            # شرایط خرید
+            buy_conditions = [
+                latest['close'] > latest['sma_20'],
+                latest['sma_20'] > latest['sma_50'],
+                latest['rsi'] < 40,
+                latest['close'] < latest['bb_lower'],
+                latest['macd'] > latest['macd_signal']
+            ]
             
-            # شرایط سیگنال فروش
-            sell_condition = (
-                current['close'] < current['supertrend'] and
-                prev['close'] >= prev['supertrend'] and
-                current['macd'] < current['macd_signal'] and
-                current['ema_150'] < current['ema_250']
-            )
+            # شرایط فروش
+            sell_conditions = [
+                latest['close'] < latest['sma_20'],
+                latest['sma_20'] < latest['sma_50'],
+                latest['rsi'] > 60,
+                latest['close'] > latest['bb_upper'],
+                latest['macd'] < latest['macd_signal']
+            ]
             
-            if buy_condition:
-                entry_price = current['close']
-                atr = self.calculate_atr(data.iloc[:i+1]).iloc[-1]
-                stop_loss = entry_price - (STOP_LOSS_MULTIPLIER * atr)
-                risk_amount = entry_price - stop_loss
-                
+            # تولید سیگنال خرید
+            if sum(buy_conditions) >= 3:
+                entry = latest['close']
+                sl = entry * 0.95  # استاپ لاس 5%
                 signals.append({
-                    'symbol': data['symbol'].iloc[i] if 'symbol' in data.columns else 'UNKNOWN',
                     'type': 'BUY',
-                    'timestamp': data.index[i],
-                    'entry': entry_price,
-                    'sl': stop_loss,
-                    'tp1': entry_price + (RISK_REWARD_RATIOS['TP1'] * risk_amount),
-                    'tp2': entry_price + (RISK_REWARD_RATIOS['TP2'] * risk_amount),
-                    'tp3': entry_price + (RISK_REWARD_RATIOS['TP3'] * risk_amount)
+                    'entry': entry,
+                    'sl': sl,
+                    'tp1': entry * 1.05,  # تیک پروفیت 5%
+                    'tp2': entry * 1.08,  # تیک پروفیت 8%
+                    'tp3': entry * 1.12,  # تیک پروفیت 12%
+                    'timestamp': latest.name,
+                    'confidence': min(sum(buy_conditions) / 5 * 100, 100)
                 })
-                
-            elif sell_condition:
-                entry_price = current['close']
-                atr = self.calculate_atr(data.iloc[:i+1]).iloc[-1]
-                stop_loss = entry_price + (STOP_LOSS_MULTIPLIER * atr)
-                risk_amount = stop_loss - entry_price
-                
+            
+            # تولید سیگنال فروش
+            if sum(sell_conditions) >= 3:
+                entry = latest['close']
+                sl = entry * 1.05  # استاپ لاس 5%
                 signals.append({
-                    'symbol': data['symbol'].iloc[i] if 'symbol' in data.columns else 'UNKNOWN',
                     'type': 'SELL',
-                    'timestamp': data.index[i],
-                    'entry': entry_price,
-                    'sl': stop_loss,
-                    'tp1': entry_price - (RISK_REWARD_RATIOS['TP1'] * risk_amount),
-                    'tp2': entry_price - (RISK_REWARD_RATIOS['TP2'] * risk_amount),
-                    'tp3': entry_price - (RISK_REWARD_RATIOS['TP3'] * risk_amount)
+                    'entry': entry,
+                    'sl': sl,
+                    'tp1': entry * 0.95,  # تیک پروفیت 5%
+                    'tp2': entry * 0.92,  # تیک پروفیت 8%
+                    'tp3': entry * 0.88,  # تیک پروفیت 12%
+                    'timestamp': latest.name,
+                    'confidence': min(sum(sell_conditions) / 5 * 100, 100)
                 })
+            
+        except Exception as e:
+            logger.error(f"خطا در تحلیل سیگنال‌ها: {e}")
         
         return signals
