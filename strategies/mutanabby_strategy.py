@@ -219,13 +219,14 @@ class MutanabbyStrategy:
                 sl = entry * 0.95  # استاپ لاس 5%
                 signals.append({
                     'type': 'BUY',
-                    'entry': entry,
-                    'sl': sl,
-                    'tp1': entry * 1.05,  # تیک پروفیت 5%
-                    'tp2': entry * 1.08,  # تیک پروفیت 8%
-                    'tp3': entry * 1.12,  # تیک پروفیت 12%
+                    'entry': round(entry, 6),
+                    'sl': round(sl, 6),  # تغییر از $l به sl
+                    'tp1': round(entry * 1.05, 6),  # تیک پروفیت 5%
+                    'tp2': round(entry * 1.08, 6),  # تیک پروفیت 8%
+                    'tp3': round(entry * 1.12, 6),  # تیک پروفیت 12%
                     'timestamp': latest.name,
-                    'confidence': min(sum(buy_conditions) / 5 * 100, 100)
+                    'confidence': min(sum(buy_conditions) / 5 * 100, 100),
+                    'symbol': 'SYMBOL'  # بعداً پر خواهد شد
                 })
             
             # تولید سیگنال فروش
@@ -234,13 +235,14 @@ class MutanabbyStrategy:
                 sl = entry * 1.05  # استاپ لاس 5%
                 signals.append({
                     'type': 'SELL',
-                    'entry': entry,
-                    'sl': sl,
-                    'tp1': entry * 0.95,  # تیک پروفیت 5%
-                    'tp2': entry * 0.92,  # تیک پروفیت 8%
-                    'tp3': entry * 0.88,  # تیک پروفیت 12%
+                    'entry': round(entry, 6),
+                    'sl': round(sl, 6),  # تغییر از $l به sl
+                    'tp1': round(entry * 0.95, 6),  # تیک پروفیت 5%
+                    'tp2': round(entry * 0.92, 6),  # تیک پروفیت 8%
+                    'tp3': round(entry * 0.88, 6),  # تیک پروفیت 12%
                     'timestamp': latest.name,
-                    'confidence': min(sum(sell_conditions) / 5 * 100, 100)
+                    'confidence': min(sum(sell_conditions) / 5 * 100, 100),
+                    'symbol': 'SYMBOL'  # بعداً پر خواهد شد
                 })
             
         except Exception as e:
