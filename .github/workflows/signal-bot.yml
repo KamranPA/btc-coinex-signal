@@ -35,68 +35,143 @@ jobs:
         pip install -r requirements.txt
         pip install requests python-dotenv ta-lib
 
-    - name: Debug API data format
+    - name: Debug market data structure
       run: |
-        echo "=== Debugging API Data Format ==="
+        echo "=== Debugging Market Data Structure ==="
         
-        echo "#!/usr/bin/env python3" > debug_api.py
-        echo "import json" >> debug_api.py
-        echo "import logging" >> debug_api.py
-        echo "logging.basicConfig(level=logging.INFO)" >> debug_api.py
-        echo "logger = logging.getLogger(__name__)" >> debug_api.py
-        echo "" >> debug_api.py
-        echo "def debug_api():" >> debug_api.py
-        echo "    try:" >> debug_api.py
-        echo "        from services.coinex_api import CoinExAPI" >> debug_api.py
-        echo "" >> debug_api.py
-        echo "        api = CoinExAPI()" >> debug_api.py
-        echo "        logger.info(\"Testing API data retrieval for BTCUSDT...\")" >> debug_api.py
-        echo "" >> debug_api.py
-        echo "        # تست دریافت داده بازار" >> debug_api.py
-        echo "        market_data = api.get_market_data('BTCUSDT')" >> debug_api.py
-        echo "        logger.info(f\"Market data type: {type(market_data)}\")" >> debug_api.py
-        echo "        logger.info(f\"Market data: {market_data}\")" >> debug_api.py
-        echo "" >> debug_api.py
-        echo "        # بررسی ساختار داده" >> debug_api.py
-        echo "        if isinstance(market_data, dict):" >> debug_api.py
-        echo "            logger.info(\"Market data is a dictionary\")" >> debug_api.py
-        echo "            for key, value in market_data.items():" >> debug_api.py
-        echo "                logger.info(f\"Key: {key}, Type: {type(value)}, Value: {value}\")" >> debug_api.py
-        echo "        elif isinstance(market_data, list):" >> debug_api.py
-        echo "            logger.info(f\"Market data is a list with {len(market_data)} items\")" >> debug_api.py
-        echo "            for i, item in enumerate(market_data[:3]):  # فقط 3 آیتم اول" >> debug_api.py
-        echo "                logger.info(f\"Item {i}: {item}\")" >> debug_api.py
-        echo "        else:" >> debug_api.py
-        echo "            logger.info(f\"Market data is of type: {type(market_data)}\")" >> debug_api.py
-        echo "" >> debug_api.py
-        echo "        # تست چند symbol مختلف" >> debug_api.py
-        echo "        symbols = ['BTCUSDT', 'ETHUSDT', 'ADAUSDT']" >> debug_api.py
-        echo "        for symbol in symbols:" >> debug_api.py
-        echo "            try:" >> debug_api.py
-        echo "                data = api.get_market_data(symbol)" >> debug_api.py
-        echo "                logger.info(f\"{symbol} data type: {type(data)}\")" >> debug_api.py
-        echo "                if isinstance(data, dict) and 'data' in data:" >> debug_api.py
-        echo "                    logger.info(f\"{symbol} has 'data' key: {type(data['data'])}\")" >> debug_api.py
-        echo "            except Exception as e:" >> debug_api.py
-        echo "                logger.warning(f\"Failed to get {symbol} data: {e}\")" >> debug_api.py
-        echo "" >> debug_api.py
-        echo "        return True" >> debug_api.py
-        echo "    " >> debug_api.py
-        echo "    except Exception as e:" >> debug_api.py
-        echo "        logger.error(f\"Error in debug: {e}\")" >> debug_api.py
-        echo "        import traceback" >> debug_api.py
-        echo "        logger.error(traceback.format_exc())" >> debug_api.py
-        echo "        return False" >> debug_api.py
-        echo "" >> debug_api.py
-        echo "if __name__ == \"__main__\":" >> debug_api.py
-        echo "    debug_api()" >> debug_api.py
+        echo "#!/usr/bin/env python3" > debug_market_data.py
+        echo "import json" >> debug_market_data.py
+        echo "import logging" >> debug_market_data.py
+        echo "logging.basicConfig(level=logging.INFO)" >> debug_market_data.py
+        echo "logger = logging.getLogger(__name__)" >> debug_market_data.py
+        echo "" >> debug_market_data.py
+        echo "def debug_market_data():" >> debug_market_data.py
+        echo "    try:" >> debug_market_data.py
+        echo "        from services.coinex_api import CoinExAPI" >> debug_market_data.py
+        echo "" >> debug_market_data.py
+        echo "        api = CoinExAPI()" >> debug_market_data.py
+        echo "        logger.info(\"Getting market data for BTCUSDT...\")" >> debug_market_data.py
+        echo "" >> debug_market_data.py
+        echo "        market_data = api.get_market_data('BTCUSDT')" >> debug_market_data.py
+        echo "        logger.info(f\"Data type: {type(market_data)}\")" >> debug_market_data.py
+        echo "        " >> debug_market_data.py
+        echo "        if isinstance(market_data, list):" >> debug_market_data.py
+        echo "            logger.info(f\"List length: {len(market_data)}\")" >> debug_market_data.py
+        echo "            if len(market_data) > 0:" >> debug_market_data.py
+        echo "                first_item = market_data[0]" >> debug_market_data.py
+        echo "                logger.info(f\"First item type: {type(first_item)}\")" >> debug_market_data.py
+        echo "                logger.info(f\"First item: {first_item}\")" >> debug_market_data.py
+        echo "                " >> debug_market_data.py
+        echo "                if isinstance(first_item, dict):" >> debug_market_data.py
+        echo "                    logger.info(\"First item is a dictionary, keys:\")" >> debug_market_data.py
+        echo "                    for key in first_item.keys():" >> debug_market_data.py
+        echo "                        logger.info(f\"  - {key}: {type(first_item[key])}\")" >> debug_market_data.py
+        echo "        " >> debug_market_data.py
+        echo "        # Test multiple symbols to see pattern" >> debug_market_data.py
+        echo "        symbols = ['BTCUSDT', 'ETHUSDT']" >> debug_market_data.py
+        echo "        for symbol in symbols:" >> debug_market_data.py
+        echo "            try:" >> debug_market_data.py
+        echo "                data = api.get_market_data(symbol)" >> debug_market_data.py
+        echo "                if isinstance(data, list) and len(data) > 0:" >> debug_market_data.py
+        echo "                    first = data[0]" >> debug_market_data.py
+        echo "                    if isinstance(first, dict):" >> debug_market_data.py
+        echo "                        logger.info(f\"{symbol} first item keys: {list(first.keys())}\")" >> debug_market_data.py
+        echo "            except Exception as e:" >> debug_market_data.py
+        echo "                logger.warning(f\"Failed to get {symbol}: {e}\")" >> debug_market_data.py
+        echo "" >> debug_market_data.py
+        echo "        return True" >> debug_market_data.py
+        echo "    " >> debug_market_data.py
+        echo "    except Exception as e:" >> debug_market_data.py
+        echo "        logger.error(f\"Error in debug: {e}\")" >> debug_market_data.py
+        echo "        import traceback" >> debug_market_data.py
+        echo "        logger.error(traceback.format_exc())" >> debug_market_data.py
+        echo "        return False" >> debug_market_data.py
+        echo "" >> debug_market_data.py
+        echo "if __name__ == \"__main__\":" >> debug_market_data.py
+        echo "    debug_market_data()" >> debug_market_data.py
         
-        echo "Running API debug..."
-        python debug_api.py
+        echo "Running market data structure debug..."
+        python debug_market_data.py
 
-    - name: Create fixed main.py
+    - name: Create fixed strategy executor
       run: |
-        echo "=== Creating Fixed Main.py ==="
+        echo "=== Creating Strategy Executor ==="
+        
+        echo "#!/usr/bin/env python3" > strategy_executor.py
+        echo "import json" >> strategy_executor.py
+        echo "import logging" >> strategy_executor.py
+        echo "from datetime import datetime" >> strategy_executor.py
+        echo "logging.basicConfig(level=logging.INFO)" >> strategy_executor.py
+        echo "logger = logging.getLogger(__name__)" >> strategy_executor.py
+        echo "" >> strategy_executor.py
+        echo "def execute_strategy():" >> strategy_executor.py
+        echo "    try:" >> strategy_executor.py
+        echo "        from services.coinex_api import CoinExAPI" >> strategy_executor.py
+        echo "        from strategies.mutanabby_strategy import MutanabbyStrategy" >> strategy_executor.py
+        echo "" >> strategy_executor.py
+        echo "        api = CoinExAPI()" >> strategy_executor.py
+        echo "        " >> strategy_executor.py
+        echo "        # Initialize strategy" >> strategy_executor.py
+        echo "        try:" >> strategy_executor.py
+        echo "            strategy = MutanabbyStrategy(api)" >> strategy_executor.py
+        echo "        except TypeError:" >> strategy_executor.py
+        echo "            strategy = MutanabbyStrategy()" >> strategy_executor.py
+        echo "" >> strategy_executor.py
+        echo "        # Get market data" >> strategy_executor.py
+        echo "        symbols = ['BTCUSDT', 'ETHUSDT', 'ADAUSDT', 'XRPUSDT']" >> strategy_executor.py
+        echo "        all_signals = []" >> strategy_executor.py
+        echo "" >> strategy_executor.py
+        echo "        for symbol in symbols:" >> strategy_executor.py
+        echo "            try:" >> strategy_executor.py
+        echo "                logger.info(f\"Analyzing {symbol}...\")" >> strategy_executor.py
+        echo "                market_data = api.get_market_data(symbol)" >> strategy_executor.py
+        echo "                " >> strategy_executor.py
+        echo "                if isinstance(market_data, list) and len(market_data) > 0:" >> strategy_executor.py
+        echo "                    # Assuming each item in list is a candle/stick data" >> strategy_executor.py
+        echo "                    # Pass the entire list or last few items to strategy" >> strategy_executor.py
+        echo "                    recent_data = market_data[-50:]  # last 50 candles" >> strategy_executor.py
+        echo "                    " >> strategy_executor.py
+        echo "                    if hasattr(strategy, 'generate_signals'):" >> strategy_executor.py
+        echo "                        try:" >> strategy_executor.py
+        echo "                            signals = strategy.generate_signals(recent_data)" >> strategy_executor.py
+        echo "                            if signals:" >> strategy_executor.py
+        echo "                                for signal in signals:" >> strategy_executor.py
+        echo "                                    signal['symbol'] = symbol  # Add symbol to signal" >> strategy_executor.py
+        echo "                                    signal['timestamp'] = datetime.now().isoformat()" >> strategy_executor.py
+        echo "                                all_signals.extend(signals)" >> strategy_executor.py
+        echo "                                logger.info(f\"Found {len(signals)} signals for {symbol}\")" >> strategy_executor.py
+        echo "                            else:" >> strategy_executor.py
+        echo "                                logger.info(f\"No signals for {symbol}\")" >> strategy_executor.py
+        echo "                        except Exception as e:" >> strategy_executor.py
+        echo "                            logger.warning(f\"generate_signals failed for {symbol}: {e}\")" >> strategy_executor.py
+        echo "                    else:" >> strategy_executor.py
+        echo "                        logger.warning(f\"No generate_signals method for {symbol}\")" >> strategy_executor.py
+        echo "                else:" >> strategy_executor.py
+        echo "                    logger.warning(f\"No market data for {symbol}\")" >> strategy_executor.py
+        echo "                    " >> strategy_executor.py
+        echo "            except Exception as e:" >> strategy_executor.py
+        echo "                logger.error(f\"Error processing {symbol}: {e}\")" >> strategy_executor.py
+        echo "" >> strategy_executor.py
+        echo "        return all_signals" >> strategy_executor.py
+        echo "    " >> strategy_executor.py
+        echo "    except Exception as e:" >> strategy_executor.py
+        echo "        logger.error(f\"Error in strategy executor: {e}\")" >> strategy_executor.py
+        echo "        import traceback" >> strategy_executor.py
+        echo "        logger.error(traceback.format_exc())" >> strategy_executor.py
+        echo "        return []" >> strategy_executor.py
+        echo "" >> strategy_executor.py
+        echo "if __name__ == \"__main__\":" >> strategy_executor.py
+        echo "    signals = execute_strategy()" >> strategy_executor.py
+        echo "    print(f\"Total signals found: {len(signals)}\")" >> strategy_executor.py
+        echo "    for signal in signals:" >> strategy_executor.py
+        echo "        print(f\"Signal: {signal}\")" >> strategy_executor.py
+        
+        echo "Running strategy executor..."
+        python strategy_executor.py
+
+    - name: Create production main.py
+      run: |
+        echo "=== Creating Production Main.py ==="
         
         echo "#!/usr/bin/env python3" > main.py
         echo "import json" >> main.py
@@ -113,94 +188,22 @@ jobs:
         echo "    try:" >> main.py
         echo "        logger.info(f\"💰 Signal Bot started at {datetime.now()}\")" >> main.py
         echo "" >> main.py
-        echo "        # Import and initialize components" >> main.py
+        echo "        # Import components" >> main.py
         echo "        from services.coinex_api import CoinExAPI" >> main.py
         echo "        from services.telegram_bot import TelegramBot" >> main.py
-        echo "        from strategies.mutanabby_strategy import MutanabbyStrategy" >> main.py
+        echo "        from strategy_executor import execute_strategy" >> main.py
         echo "" >> main.py
         echo "        api = CoinExAPI()" >> main.py
         echo "        telegram_bot = TelegramBot()" >> main.py
-        echo "        " >> main.py
-        echo "        # Initialize strategy" >> main.py
-        echo "        try:" >> main.py
-        echo "            strategy = MutanabbyStrategy(api)" >> main.py
-        echo "            logger.info(\"✅ Strategy initialized with API\")" >> main.py
-        echo "        except TypeError:" >> main.py
-        echo "            strategy = MutanabbyStrategy()" >> main.py
-        echo "            logger.info(\"✅ Strategy initialized without API\")" >> main.py
         echo "" >> main.py
-        echo "        logger.info(\"✅ All components initialized\")" >> main.py
+        echo "        logger.info(\"✅ Components imported\")" >> main.py
         echo "" >> main.py
-        echo "        # Execute strategy with proper data handling" >> main.py
-        echo "        logger.info(\"🔍 Analyzing market conditions...\")" >> main.py
-        echo "        " >> main.py
-        echo "        signals = None" >> main.py
-        echo "        " >> main.py
-        echo "        # Get market data and handle different formats" >> main.py
-        echo "        market_data = api.get_market_data('BTCUSDT')" >> main.py
-        echo "        logger.info(f\"Market data type: {type(market_data)}\")" >> main.py
-        echo "        " >> main.py
-        echo "        # Handle different API response formats" >> main.py
-        echo "        if isinstance(market_data, dict) and 'data' in market_data:" >> main.py
-        echo "            # Format: {'data': actual_data}" >> main.py
-        echo "            actual_data = market_data['data']" >> main.py
-        echo "            logger.info(f\"Using 'data' key from response, type: {type(actual_data)}\")" >> main.py
-        echo "            market_data = actual_data" >> main.py
-        echo "        elif isinstance(market_data, dict) and 'result' in market_data:" >> main.py
-        echo "            # Format: {'result': actual_data}" >> main.py
-        echo "            actual_data = market_data['result']" >> main.py
-        echo "            logger.info(f\"Using 'result' key from response, type: {type(actual_data)}\")" >> main.py
-        echo "            market_data = actual_data" >> main.py
-        echo "        " >> main.py
-        echo "        # Try to generate signals with proper data" >> main.py
-        echo "        if hasattr(strategy, 'generate_signals'):" >> main.py
-        echo "            try:" >> main.py
-        echo "                signals = strategy.generate_signals(market_data)" >> main.py
-        echo "                logger.info(\"✅ generate_signals executed successfully\")" >> main.py
-        echo "            except Exception as e:" >> main.py
-        echo "                logger.warning(f\"⚠ generate_signals failed: {e}\")" >> main.py
-        echo "                logger.info(\"Trying alternative approach...\")" >> main.py
-        echo "                " >> main.py
-        echo "                # اگر داده list است، اولین آیتم را بگیریم" >> main.py
-        echo "                if isinstance(market_data, list) and len(market_data) > 0:" >> main.py
-        echo "                    try:" >> main.py
-        echo "                        signals = strategy.generate_signals(market_data[0])" >> main.py
-                        echo "                        logger.info(\"✅ generate_signals with first list item executed\")" >> main.py
-        echo "                    except Exception as e2:" >> main.py
-        echo "                        logger.warning(f\"⚠ generate_signals with first item also failed: {e2}\")" >> main.py
-        echo "        " >> main.py
-        echo "        # Try other methods if still no signals" >> main.py
-        echo "        if signals is None:" >> main.py
-        echo "            real_methods = ['execute', 'run', 'analyze', 'get_signals']" >> main.py
-        echo "            for method_name in real_methods:" >> main.py
-        echo "                if hasattr(strategy, method_name):" >> main.py
-        echo "                    try:" >> main.py
-        echo "                        method = getattr(strategy, method_name)" >> main.py
-        echo "                        signals = method()" >> main.py
-        echo "                        logger.info(f\"✅ Method executed: {method_name}\")" >> main.py
-        echo "                        break" >> main.py
-        echo "                    except Exception as e:" >> main.py
-        echo "                        logger.warning(f\"⚠ Method {method_name} failed: {e}\")" >> main.py
-        echo "        " >> main.py
-        echo "        # ONLY create test signal if in test mode" >> main.py
-        echo "        if signals is None and '--test' in sys.argv:" >> main.py
-        echo "            logger.warning(\"⚠ No real signals found, creating TEST signal\")" >> main.py
-        echo "            signals = [" >> main.py
-        echo "                {" >> main.py
-        echo "                    'symbol': 'BTCUSDT'," >> main.py
-        echo "                    'action': 'BUY'," >> main.py
-        echo "                    'price': 50000," >> main.py
-        echo "                    'timestamp': datetime.now().isoformat()," >> main.py
-        echo "                    'confidence': 0.8," >> main.py
-        echo "                    'message': 'TEST SIGNAL - Bullish pattern detected'" >> main.py
-        echo "                }" >> main.py
-        echo "            ]" >> main.py
-        echo "        elif signals is None:" >> main.py
-        echo "            logger.info(\"📭 No signals found\")" >> main.py
-        echo "            return True" >> main.py
+        echo "        # Execute strategy" >> main.py
+        echo "        logger.info(\"🔍 Analyzing multiple symbols...\")" >> main.py
+        echo "        signals = execute_strategy()" >> main.py
         echo "" >> main.py
         echo "        if signals and len(signals) > 0:" >> main.py
-        echo "            logger.info(f\"🎯 Found {len(signals)} signals\")" >> main.py
+        echo "            logger.info(f\"🎯 Found {len(signals)} total signals\")" >> main.py
         echo "            " >> main.py
         echo "            # Send signals via Telegram" >> main.py
         echo "            if '--test' not in sys.argv:" >> main.py
@@ -215,7 +218,7 @@ jobs:
         echo "                            sent = True" >> main.py
         echo "                            break" >> main.py
         echo "                        except Exception as e:" >> main.py
-        echo "                            logger.warning(f\"⚠ Telegram method {method_name} failed: {e}\")" >> main.py
+        echo "                            logger.warning(f\"⚠ Telegram method {method_name} failed: {e}\")" >> self.py
         echo "                " >> main.py
         echo "                if not sent:" >> main.py
         echo "                    logger.error(\"❌ No working Telegram method found\")" >> main.py
@@ -238,7 +241,7 @@ jobs:
         echo "    success = main()" >> main.py
         echo "    sys.exit(0 if success else 1)" >> main.py
 
-        echo "Fixed main.py created successfully"
+        echo "Production main.py created successfully"
 
     - name: Run Signal Bot
       env:
@@ -254,10 +257,10 @@ jobs:
         echo "Test Mode: $TEST_MODE"
         
         if [ "$TEST_MODE" = "true" ]; then
-            echo "🟡 Running in TEST mode - Test signals will be created but not sent"
+            echo "🟡 Running in TEST mode"
             python main.py --test
         else
-            echo "🟢 Running in PRODUCTION mode - Only real signals will be processed"
+            echo "🟢 Running in PRODUCTION mode"
             python main.py
         fi
 
