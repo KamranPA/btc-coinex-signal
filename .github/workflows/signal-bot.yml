@@ -35,72 +35,68 @@ jobs:
         pip install -r requirements.txt
         pip install requests python-dotenv ta-lib
 
-    - name: Debug strategy execution
+    - name: Debug API data format
       run: |
-        echo "=== Debugging Strategy Execution ==="
+        echo "=== Debugging API Data Format ==="
         
-        # ایجاد یک اسکریپت دیباگ برای استراتژی
-        echo "#!/usr/bin/env python3" > debug_strategy.py
-        echo "import logging" >> debug_strategy.py
-        echo "logging.basicConfig(level=logging.INFO)" >> debug_strategy.py
-        echo "logger = logging.getLogger(__name__)" >> debug_strategy.py
-        echo "" >> debug_strategy.py
-        echo "def debug_strategy():" >> debug_strategy.py
-        echo "    try:" >> debug_strategy.py
-        echo "        from services.coinex_api import CoinExAPI" >> debug_strategy.py
-        echo "        from strategies.mutanabby_strategy import MutanabbyStrategy" >> debug_strategy.py
-        echo "" >> debug_strategy.py
-        echo "        api = CoinExAPI()" >> debug_strategy.py
-        echo "        " >> debug_strategy.py
-        echo "        # تست دریافت داده از API" >> debug_strategy.py
-        echo "        logger.info(\"Testing API data retrieval...\")" >> debug_strategy.py
-        echo "        market_data = api.get_market_data('BTCUSDT')" >> debug_strategy.py
-        echo "        logger.info(f\"Market data: {market_data}\")" >> debug_strategy.py
-        echo "" >> debug_strategy.py
-        echo "        # تست استراتژی" >> debug_strategy.py
-        echo "        logger.info(\"Testing strategy...\")" >> debug_strategy.py
-        echo "        " >> debug_strategy.py
-        echo "        # سعی کنیم استراتژی را با پارامترهای مختلف initialize کنیم" >> debug_strategy.py
-        echo "        try:" >> debug_strategy.py
-        echo "            strategy = MutanabbyStrategy(api)" >> debug_strategy.py
-        echo "            logger.info(\"Strategy initialized with API\")" >> debug_strategy.py
-        echo "        except TypeError as e:" >> debug_strategy.py
-        echo "            logger.warning(f\"Strategy with API failed: {e}\")" >> debug_strategy.py
-        echo "            strategy = MutanabbyStrategy()" >> debug_strategy.py
-        echo "            logger.info(\"Strategy initialized without API\")" >> debug_strategy.py
-        echo "" >> debug_strategy.py
-        echo "        # تست تمام متدهای ممکن" >> debug_strategy.py
-        echo "        methods = ['generate_signals', 'execute', 'run', 'analyze', 'get_signals']" >> debug_strategy.py
-        echo "        for method_name in methods:" >> debug_strategy.py
-        echo "            if hasattr(strategy, method_name):" >> debug_strategy.py
-                echo "                logger.info(f\"Testing method: {method_name}\")" >> debug_strategy.py
-        echo "                method = getattr(strategy, method_name)" >> debug_strategy.py
-        echo "                " >> debug_strategy.py
-        echo "                # اگر متد نیاز به پارامتر دارد" >> debug_strategy.py
-        echo "                if method_name == 'generate_signals':" >> debug_strategy.py
-        echo "                    result = method(market_data)" >> debug_strategy.py
-        echo "                else:" >> debug_strategy.py
-        echo "                    result = method()" >> debug_strategy.py
-        echo "                " >> debug_strategy.py
-        echo "                logger.info(f\"Method {method_name} result: {result}\")" >> debug_strategy.py
-        echo "                " >> debug_strategy.py
-        echo "        return True" >> debug_strategy.py
-        echo "    " >> debug_strategy.py
-        echo "    except Exception as e:" >> debug_strategy.py
-        echo "        logger.error(f\"Error in debug: {e}\")" >> debug_strategy.py
-        echo "        import traceback" >> debug_strategy.py
-        echo "        logger.error(traceback.format_exc())" >> debug_strategy.py
-        echo "        return False" >> debug_strategy.py
-        echo "" >> debug_strategy.py
-        echo "if __name__ == \"__main__\":" >> debug_strategy.py
-        echo "    debug_strategy()" >> debug_strategy.py
+        echo "#!/usr/bin/env python3" > debug_api.py
+        echo "import json" >> debug_api.py
+        echo "import logging" >> debug_api.py
+        echo "logging.basicConfig(level=logging.INFO)" >> debug_api.py
+        echo "logger = logging.getLogger(__name__)" >> debug_api.py
+        echo "" >> debug_api.py
+        echo "def debug_api():" >> debug_api.py
+        echo "    try:" >> debug_api.py
+        echo "        from services.coinex_api import CoinExAPI" >> debug_api.py
+        echo "" >> debug_api.py
+        echo "        api = CoinExAPI()" >> debug_api.py
+        echo "        logger.info(\"Testing API data retrieval for BTCUSDT...\")" >> debug_api.py
+        echo "" >> debug_api.py
+        echo "        # تست دریافت داده بازار" >> debug_api.py
+        echo "        market_data = api.get_market_data('BTCUSDT')" >> debug_api.py
+        echo "        logger.info(f\"Market data type: {type(market_data)}\")" >> debug_api.py
+        echo "        logger.info(f\"Market data: {market_data}\")" >> debug_api.py
+        echo "" >> debug_api.py
+        echo "        # بررسی ساختار داده" >> debug_api.py
+        echo "        if isinstance(market_data, dict):" >> debug_api.py
+        echo "            logger.info(\"Market data is a dictionary\")" >> debug_api.py
+        echo "            for key, value in market_data.items():" >> debug_api.py
+        echo "                logger.info(f\"Key: {key}, Type: {type(value)}, Value: {value}\")" >> debug_api.py
+        echo "        elif isinstance(market_data, list):" >> debug_api.py
+        echo "            logger.info(f\"Market data is a list with {len(market_data)} items\")" >> debug_api.py
+        echo "            for i, item in enumerate(market_data[:3]):  # فقط 3 آیتم اول" >> debug_api.py
+        echo "                logger.info(f\"Item {i}: {item}\")" >> debug_api.py
+        echo "        else:" >> debug_api.py
+        echo "            logger.info(f\"Market data is of type: {type(market_data)}\")" >> debug_api.py
+        echo "" >> debug_api.py
+        echo "        # تست چند symbol مختلف" >> debug_api.py
+        echo "        symbols = ['BTCUSDT', 'ETHUSDT', 'ADAUSDT']" >> debug_api.py
+        echo "        for symbol in symbols:" >> debug_api.py
+        echo "            try:" >> debug_api.py
+        echo "                data = api.get_market_data(symbol)" >> debug_api.py
+        echo "                logger.info(f\"{symbol} data type: {type(data)}\")" >> debug_api.py
+        echo "                if isinstance(data, dict) and 'data' in data:" >> debug_api.py
+        echo "                    logger.info(f\"{symbol} has 'data' key: {type(data['data'])}\")" >> debug_api.py
+        echo "            except Exception as e:" >> debug_api.py
+        echo "                logger.warning(f\"Failed to get {symbol} data: {e}\")" >> debug_api.py
+        echo "" >> debug_api.py
+        echo "        return True" >> debug_api.py
+        echo "    " >> debug_api.py
+        echo "    except Exception as e:" >> debug_api.py
+        echo "        logger.error(f\"Error in debug: {e}\")" >> debug_api.py
+        echo "        import traceback" >> debug_api.py
+        echo "        logger.error(traceback.format_exc())" >> debug_api.py
+        echo "        return False" >> debug_api.py
+        echo "" >> debug_api.py
+        echo "if __name__ == \"__main__\":" >> debug_api.py
+        echo "    debug_api()" >> debug_api.py
         
-        echo "Running strategy debug..."
-        python debug_strategy.py
+        echo "Running API debug..."
+        python debug_api.py
 
-    - name: Create production main.py
+    - name: Create fixed main.py
       run: |
-        echo "=== Creating Production Main.py ==="
+        echo "=== Creating Fixed Main.py ==="
         
         echo "#!/usr/bin/env python3" > main.py
         echo "import json" >> main.py
@@ -135,22 +131,45 @@ jobs:
         echo "" >> main.py
         echo "        logger.info(\"✅ All components initialized\")" >> main.py
         echo "" >> main.py
-        echo "        # Execute strategy - ONLY use real methods" >> main.py
+        echo "        # Execute strategy with proper data handling" >> main.py
         echo "        logger.info(\"🔍 Analyzing market conditions...\")" >> main.py
         echo "        " >> main.py
         echo "        signals = None" >> main.py
         echo "        " >> main.py
-        echo "        # Try to get REAL signals first" >> main.py
+        echo "        # Get market data and handle different formats" >> main.py
         echo "        market_data = api.get_market_data('BTCUSDT')" >> main.py
+        echo "        logger.info(f\"Market data type: {type(market_data)}\")" >> main.py
         echo "        " >> main.py
+        echo "        # Handle different API response formats" >> main.py
+        echo "        if isinstance(market_data, dict) and 'data' in market_data:" >> main.py
+        echo "            # Format: {'data': actual_data}" >> main.py
+        echo "            actual_data = market_data['data']" >> main.py
+        echo "            logger.info(f\"Using 'data' key from response, type: {type(actual_data)}\")" >> main.py
+        echo "            market_data = actual_data" >> main.py
+        echo "        elif isinstance(market_data, dict) and 'result' in market_data:" >> main.py
+        echo "            # Format: {'result': actual_data}" >> main.py
+        echo "            actual_data = market_data['result']" >> main.py
+        echo "            logger.info(f\"Using 'result' key from response, type: {type(actual_data)}\")" >> main.py
+        echo "            market_data = actual_data" >> main.py
+        echo "        " >> main.py
+        echo "        # Try to generate signals with proper data" >> main.py
         echo "        if hasattr(strategy, 'generate_signals'):" >> main.py
         echo "            try:" >> main.py
         echo "                signals = strategy.generate_signals(market_data)" >> main.py
-        echo "                logger.info(\"✅ Real generate_signals executed\")" >> main.py
+        echo "                logger.info(\"✅ generate_signals executed successfully\")" >> main.py
         echo "            except Exception as e:" >> main.py
         echo "                logger.warning(f\"⚠ generate_signals failed: {e}\")" >> main.py
+        echo "                logger.info(\"Trying alternative approach...\")" >> main.py
+        echo "                " >> main.py
+        echo "                # اگر داده list است، اولین آیتم را بگیریم" >> main.py
+        echo "                if isinstance(market_data, list) and len(market_data) > 0:" >> main.py
+        echo "                    try:" >> main.py
+        echo "                        signals = strategy.generate_signals(market_data[0])" >> main.py
+                        echo "                        logger.info(\"✅ generate_signals with first list item executed\")" >> main.py
+        echo "                    except Exception as e2:" >> main.py
+        echo "                        logger.warning(f\"⚠ generate_signals with first item also failed: {e2}\")" >> main.py
         echo "        " >> main.py
-        echo "        # Try other real methods" >> main.py
+        echo "        # Try other methods if still no signals" >> main.py
         echo "        if signals is None:" >> main.py
         echo "            real_methods = ['execute', 'run', 'analyze', 'get_signals']" >> main.py
         echo "            for method_name in real_methods:" >> main.py
@@ -158,7 +177,7 @@ jobs:
         echo "                    try:" >> main.py
         echo "                        method = getattr(strategy, method_name)" >> main.py
         echo "                        signals = method()" >> main.py
-        echo "                        logger.info(f\"✅ Real method executed: {method_name}\")" >> main.py
+        echo "                        logger.info(f\"✅ Method executed: {method_name}\")" >> main.py
         echo "                        break" >> main.py
         echo "                    except Exception as e:" >> main.py
         echo "                        logger.warning(f\"⚠ Method {method_name} failed: {e}\")" >> main.py
@@ -219,7 +238,7 @@ jobs:
         echo "    success = main()" >> main.py
         echo "    sys.exit(0 if success else 1)" >> main.py
 
-        echo "Production main.py created successfully"
+        echo "Fixed main.py created successfully"
 
     - name: Run Signal Bot
       env:
